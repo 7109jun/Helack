@@ -69,6 +69,7 @@ pre.code{background:#090e19;border:1px solid var(--line);padding:10px;border-rad
 .notice{padding:10px 12px;border:1px solid #394a72;background:#121c31;border-radius:9px;color:#c8d3ef}
 hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 a{color:#aabdff}
+.searchbar{display:flex;gap:8px;margin-bottom:12px}.searchbar input{flex:1}.chip{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#18233b;border:1px solid #2d3c5e;color:#cdd7ef;font-size:11px}.search-result{padding:10px;border-bottom:1px solid var(--line)}.search-result:hover{background:#121c31}.pinned{border-left:3px solid var(--accent)}
 </style>
 </head>
 <body>
@@ -83,6 +84,8 @@ a{color:#aabdff}
       <button data-view="docs">▣ <span>Documents</span></button>
       <button data-view="projects">▤ <span>Projects</span></button>
       <button data-view="links">↗ <span>Open Links</span></button>
+      <button data-view="teams">T <span>Teams Security</span></button>
+      <button data-view="objects">◇ <span>Objects (Experimental)</span></button>
       <button data-view="hsh">⌘ <span>HSH</span></button>
       <button data-view="hstscript">▶ <span>HstScript</span></button>
       <div class="nav-section">Connection</div>
@@ -157,7 +160,28 @@ a{color:#aabdff}
       documents: [],
       projects: [],
       links: [],
-      peers: []
+      objects: [],
+      peers: [],
+      pins: [],
+      reactions: {},
+      notifications: [],
+      activity: [],
+      roomSettings: {},
+      team: {
+        id: crypto.randomUUID(),
+        name: "Helack Team",
+        members: [],
+        policies: {
+          locked: false,
+          allowGuests: true,
+          allowRoomSharing: true,
+          allowWorkspaceSharing: true,
+          requireHlkEncryption: false,
+          idleTimeoutMinutes: 60
+        },
+        invites: [],
+        audit: []
+      }
     },
     identity: {
       id: "anon-" + crypto.randomUUID(),
@@ -183,6 +207,33 @@ a{color:#aabdff}
       if (w && typeof w === "object") state.workspace = Object.assign(state.workspace, w);
       if (i && typeof i === "object") state.identity = Object.assign(state.identity, i);
     } catch {}
+    if (!Array.isArray(state.workspace.rooms)) state.workspace.rooms=[];
+    if (!Array.isArray(state.workspace.messages)) state.workspace.messages=[];
+    if (!Array.isArray(state.workspace.threads)) state.workspace.threads=[];
+    if (!Array.isArray(state.workspace.comments)) state.workspace.comments=[];
+    if (!Array.isArray(state.workspace.wiki)) state.workspace.wiki=[];
+    if (!Array.isArray(state.workspace.documents)) state.workspace.documents=[];
+    if (!Array.isArray(state.workspace.projects)) state.workspace.projects=[];
+    if (!Array.isArray(state.workspace.links)) state.workspace.links=[];
+    if (!Array.isArray(state.workspace.objects)) state.workspace.objects=[];
+    if (!Array.isArray(state.workspace.peers)) state.workspace.peers=[];
+    if (!Array.isArray(state.workspace.pins)) state.workspace.pins=[];
+    if (!state.workspace.reactions || typeof state.workspace.reactions !== "object") state.workspace.reactions={};
+    if (!Array.isArray(state.workspace.notifications)) state.workspace.notifications=[];
+    if (!Array.isArray(state.workspace.activity)) state.workspace.activity=[];
+    if (!state.workspace.roomSettings || typeof state.workspace.roomSettings !== "object") state.workspace.roomSettings={};
+    if (!state.workspace.team || typeof state.workspace.team !== "object") state.workspace.team={};
+    state.workspace.team.id ||= crypto.randomUUID();
+    state.workspace.team.name ||= "Helack Team";
+    if (!Array.isArray(state.workspace.team.members)) state.workspace.team.members=[];
+    if (!Array.isArray(state.workspace.team.invites)) state.workspace.team.invites=[];
+    if (!Array.isArray(state.workspace.team.audit)) state.workspace.team.audit=[];
+    state.workspace.team.policies ||= {};
+    const defaultPolicies={locked:false,allowGuests:true,allowRoomSharing:true,allowWorkspaceSharing:true,requireHlkEncryption:false,idleTimeoutMinutes:60};
+    for (const [k,v] of Object.entries(defaultPolicies)) if(state.workspace.team.policies[k]===undefined) state.workspace.team.policies[k]=v;
+    if(!state.workspace.team.members.some(m=>m.id===state.identity.id)) {
+      state.workspace.team.members.push({id:state.identity.id,name:state.identity.name,role:"owner",joinedAt:isoNow(),status:"active"});
+    }
     if (!state.workspace.rooms.length) {
       const r = {id: crypto.randomUUID(), name:"general", topic:"General work discussion"};
       state.workspace.rooms.push(r);
@@ -191,7 +242,7 @@ a{color:#aabdff}
 
   function allObjects() {
     const w = state.workspace;
-    return ["rooms","messages","threads","comments","wiki","documents","projects","links"]
+    return ["rooms","messages","threads","comments","wiki","documents","projects","links","objects"]
       .reduce((n,k)=>n+(Array.isArray(w[k])?w[k].length:0),0);
   }
 
@@ -201,6 +252,47 @@ a{color:#aabdff}
 
   function isoNow(){return new Date().toISOString();}
   function shortId(){return Math.random().toString(36).slice(2,7).toUpperCase();}
+
+  function recordActivity(action, detail, targetId=null){
+    state.workspace.activity.unshift({id:crypto.randomUUID(),action,detail,targetId,actor:state.identity.name,time:isoNow()});
+    if(state.workspace.activity.length>500) state.workspace.activity.length=500;
+  }
+  function notify(message){
+    state.workspace.notifications.unshift({id:crypto.randomUUID(),message,read:false,time:isoNow()});
+    if(state.workspace.notifications.length>100) state.workspace.notifications.length=100;
+  }
+  function unreadNotifications(){return state.workspace.notifications.filter(n=>!n.read).length;}
+  function togglePin(id){
+    const i=state.workspace.pins.indexOf(id);
+    if(i>=0) state.workspace.pins.splice(i,1); else state.workspace.pins.push(id);
+    recordActivity(i>=0?'unpin':'pin',i>=0?'Message unpinned':'Message pinned',id); saveLocal(); render();
+  }
+  function toggleReaction(id,emoji){
+    state.workspace.reactions[id] ||= {};
+    state.workspace.reactions[id][emoji] ||= [];
+    const list=state.workspace.reactions[id][emoji];
+    const i=list.indexOf(state.identity.id);
+    if(i>=0) list.splice(i,1); else list.push(state.identity.id);
+    saveLocal(); render();
+  }
+  function showNotifications(){
+    modal(`<h2>Notifications</h2><div class="spread"><span class="chip">${unreadNotifications()} unread</span><button class="btn" onclick="state.workspace.notifications.forEach(n=>n.read=true);saveLocal();closeModal();render()">Mark all read</button></div><hr><div class="list">${state.workspace.notifications.length?state.workspace.notifications.map(n=>`<div class="wiki-page"><div class="small muted">${new Date(n.time).toLocaleString()} · ${n.read?'read':'unread'}</div><div>${esc(n.message)}</div></div>`).join(''):'<div class="empty">No notifications</div>'}</div><div class="row" style="margin-top:10px"><button class="btn" onclick="closeModal()">Close</button></div>`);
+  }
+  function globalSearch(){
+    const q=(document.getElementById('globalSearch')?.value||'').trim().toLowerCase();
+    const box=document.getElementById('globalSearchResult'); if(!box)return;
+    if(!q){box.style.display='none';return;}
+    const results=[];
+    state.workspace.rooms.forEach(r=>{if((r.name+' '+(r.topic||'')).toLowerCase().includes(q))results.push(['Room','# '+r.name,r.topic||'']);});
+    state.workspace.messages.forEach(m=>{if((m.content+' '+m.authorName).toLowerCase().includes(q))results.push(['Message',m.authorName,m.content]);});
+    state.workspace.wiki.forEach(w=>{if((w.title+' '+(w.body||'')).toLowerCase().includes(q))results.push(['Wiki',w.title,w.body||'']);});
+    state.workspace.documents.forEach(d=>{if((d.title+' '+(d.body||'')).toLowerCase().includes(q))results.push(['Document',d.title,d.body||'']);});
+    state.workspace.projects.forEach(pr=>{if(pr.name.toLowerCase().includes(q))results.push(['Project',pr.name,`${pr.tasks.length} tasks`]);pr.tasks.forEach(t=>{if((t.title+' '+(t.description||'')).toLowerCase().includes(q))results.push(['Task',t.title,t.description||'']);});});
+    state.workspace.links.forEach(l=>{if((l.title+' '+l.url).toLowerCase().includes(q))results.push(['Link',l.title,l.url]);});
+    state.workspace.objects.forEach(o=>{if((o.name+' '+o.type+ ' '+JSON.stringify(o.properties||{})).toLowerCase().includes(q))results.push(['Object',o.name,o.type]);});
+    box.style.display='block';
+    box.innerHTML=`<h3>Search results</h3>${results.length?results.slice(0,50).map(r=>`<div class="search-result"><span class="chip">${esc(r[0])}</span> <b>${esc(r[1])}</b><div class="small muted">${esc(String(r[2]).slice(0,220))}</div></div>`).join(''):'<div class="empty">No results</div>'}`;
+  }
 
   function setView(v) {
     state.view=v;
@@ -500,6 +592,153 @@ a{color:#aabdff}
     state.workspace[kind].push(value);
   }
 
+  // ---------- Team Security ----------
+  const TEAM_PERMISSIONS = {
+    owner: {manageTeam:true, manageMembers:true, manageRooms:true, manageDocs:true, manageProjects:true, manageObjects:true, write:true},
+    admin: {manageTeam:true, manageMembers:true, manageRooms:true, manageDocs:true, manageProjects:true, manageObjects:true, write:true},
+    member:{manageTeam:false,manageMembers:false,manageRooms:false,manageDocs:true,manageProjects:true,manageObjects:true,write:true},
+    guest: {manageTeam:false,manageMembers:false,manageRooms:false,manageDocs:false,manageProjects:false,manageObjects:false,write:true}
+  };
+
+  function currentTeamMember(){
+    return state.workspace.team.members.find(m=>m.id===state.identity.id) || null;
+  }
+  function canTeam(action){
+    const m=currentTeamMember();
+    return !!(m && TEAM_PERMISSIONS[m.role]?.[action]);
+  }
+  function requireTeamPermission(action){
+    if(canTeam(action)) return true;
+    alert("Teams Security: permission denied.");
+    return false;
+  }
+  function addAudit(action,detail,level="info"){
+    const team=state.workspace.team;
+    team.audit.push({id:crypto.randomUUID(),time:isoNow(),actorId:state.identity.id,actorName:state.identity.name,action,detail,level});
+    if(team.audit.length>500) team.audit=team.audit.slice(-500);
+  }
+  function randomInviteCode(){
+    const bytes=new Uint8Array(8);
+    crypto.getRandomValues(bytes);
+    return [...bytes].map(b=>b.toString(16).padStart(2,"0")).join("").toUpperCase();
+  }
+  function createTeamInvite(){
+    if(!requireTeamPermission("manageMembers")) return null;
+    const inv={id:crypto.randomUUID(),code:randomInviteCode(),createdAt:isoNow(),expiresAt:new Date(Date.now()+86400000).toISOString(),uses:0,maxUses:1,revoked:false};
+    state.workspace.team.invites.push(inv);
+    addAudit("team.invite.create","Created one-time team invite", "security");
+    saveLocal(); broadcast({kind:"team",value:state.workspace.team});
+    return inv;
+  }
+  function roleLabel(role){return ({owner:"Owner",admin:"Admin",member:"Member",guest:"Guest"}[role]||role);}
+  function teamPolicyChange(key,value){
+    if(!requireTeamPermission("manageTeam")) return;
+    state.workspace.team.policies[key]=value;
+    addAudit("policy."+key,String(value),"security");
+    saveLocal(); broadcast({kind:"team",value:state.workspace.team}); render();
+  }
+  function toggleTeamLock(){
+    if(!requireTeamPermission("manageTeam")) return;
+    const locked=!state.workspace.team.policies.locked;
+    state.workspace.team.policies.locked=locked;
+    addAudit(locked?"team.lock":"team.unlock",locked?"Workspace locked":"Workspace unlocked","security");
+    saveLocal(); broadcast({kind:"team",value:state.workspace.team}); render();
+  }
+  function changeMemberRole(id,role){
+    if(!requireTeamPermission("manageMembers")) return;
+    const member=state.workspace.team.members.find(m=>m.id===id);
+    if(!member || !TEAM_PERMISSIONS[role]) return;
+    if(member.role==="owner" && role!=="owner") {
+      const owners=state.workspace.team.members.filter(m=>m.role==="owner");
+      if(owners.length<=1){alert("The team must keep at least one owner.");return;}
+    }
+    member.role=role;
+    addAudit("member.role",`${member.name} → ${roleLabel(role)}`,"security");
+    saveLocal(); broadcast({kind:"team",value:state.workspace.team}); render();
+  }
+  function addTeamMemberFromInvite(){
+    const code=document.getElementById("inviteAcceptCode")?.value.trim().toUpperCase();
+    if(!code) return;
+    const inv=state.workspace.team.invites.find(x=>x.code===code && !x.revoked && x.uses<x.maxUses && new Date(x.expiresAt)>new Date());
+    if(!inv){alert("Invalid, expired, or already-used invite.");return;}
+    inv.uses++;
+    if(!state.workspace.team.members.some(m=>m.id===state.identity.id)){
+      state.workspace.team.members.push({id:state.identity.id,name:state.identity.name,role:"member",joinedAt:isoNow(),status:"active"});
+    } else {
+      const me=currentTeamMember(); if(me) me.role="member";
+    }
+    addAudit("member.join","Joined team with invite","security");
+    saveLocal(); broadcast({kind:"team",value:state.workspace.team}); closeModal(); render();
+  }
+  function revokeInvite(id){
+    if(!requireTeamPermission("manageMembers")) return;
+    const inv=state.workspace.team.invites.find(i=>i.id===id); if(!inv)return;
+    inv.revoked=true; addAudit("team.invite.revoke","Revoked invite","security"); saveLocal(); broadcast({kind:"team",value:state.workspace.team}); render();
+  }
+  function showCreateInvite(){
+    const inv=createTeamInvite();
+    if(!inv)return;
+    modal(`<h2>Team Invite Created</h2><div class="notice">One-time invite · expires ${esc(new Date(inv.expiresAt).toLocaleString())}</div><hr><input id="newInviteCode" value="${esc(inv.code)}" readonly><div class="row" style="margin-top:8px"><button class="btn primary" onclick="navigator.clipboard?.writeText(document.getElementById('newInviteCode').value)">Copy</button><button class="btn" onclick="closeModal()">Close</button></div>`);
+  }
+  function showAcceptInvite(){
+    modal(`<h2>Accept Team Invite</h2><div class="small muted">Invite code를 입력해 현재 익명 Identity를 Team에 추가합니다.</div><input id="inviteAcceptCode" style="margin-top:9px" placeholder="A1B2C3D4E5F6"><div class="row" style="margin-top:10px"><button class="btn primary" onclick="addTeamMemberFromInvite()">Join Team</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+  }
+  function teamsView(){
+    const team=state.workspace.team, me=currentTeamMember();
+    const policies=team.policies;
+    const recent=team.audit.slice().reverse().slice(0,12);
+    return `<div class="spread"><div><h2>${esc(team.name)}</h2><div class="muted">Teams Security — 대규모 팀을 위한 역할·정책·초대·감사 체계</div></div><div class="row"><span class="tag">${team.members.length} members</span><span class="tag">${policies.locked?'LOCKED':'ACTIVE'}</span></div></div>
+      <div class="grid cols3" style="margin-top:12px">
+        <div class="card pad"><div class="small muted">Your Role</div><div class="kpi" style="font-size:21px">${esc(roleLabel(me?.role||'guest'))}</div></div>
+        <div class="card pad"><div class="small muted">Audit Events</div><div class="kpi">${team.audit.length}</div></div>
+        <div class="card pad"><div class="small muted">Security Mode</div><div class="kpi" style="font-size:21px">${policies.locked?'Locked':'Normal'}</div></div>
+      </div>
+      <div class="grid cols2" style="margin-top:12px">
+        <div class="card pad">
+          <div class="spread"><h3>Members</h3><div class="row"><button class="btn" data-action="accept-team-invite">Join Invite</button><button class="btn primary" data-action="create-team-invite">+ Invite</button></div></div>
+          <div class="list">${team.members.map(m=>`<div class="wiki-page"><div class="spread"><div><b>${esc(m.name)}</b><div class="small muted">${esc(m.id)}</div></div>${canTeam('manageMembers')?`<select data-role-member="${esc(m.id)}" style="width:120px"><option value="owner" ${m.role==='owner'?'selected':''}>Owner</option><option value="admin" ${m.role==='admin'?'selected':''}>Admin</option><option value="member" ${m.role==='member'?'selected':''}>Member</option><option value="guest" ${m.role==='guest'?'selected':''}>Guest</option></select>`:`<span class="tag">${esc(roleLabel(m.role))}</span>`}</div><div class="small muted">${esc(m.status||'active')}</div></div>`).join('')}</div>
+        </div>
+        <div class="card pad">
+          <div class="spread"><h3>Security Policies</h3><button class="btn ${policies.locked?'danger':''}" data-action="toggle-team-lock">${policies.locked?'Unlock':'Lock Team'}</button></div>
+          <label class="row" style="justify-content:space-between;margin:10px 0"><span>Allow guests</span><input data-team-policy="allowGuests" type="checkbox" ${policies.allowGuests?'checked':''} ${canTeam('manageTeam')?'':'disabled'} style="width:auto"></label>
+          <label class="row" style="justify-content:space-between;margin:10px 0"><span>Allow room sharing</span><input data-team-policy="allowRoomSharing" type="checkbox" ${policies.allowRoomSharing?'checked':''} ${canTeam('manageTeam')?'':'disabled'} style="width:auto"></label>
+          <label class="row" style="justify-content:space-between;margin:10px 0"><span>Allow workspace sharing</span><input data-team-policy="allowWorkspaceSharing" type="checkbox" ${policies.allowWorkspaceSharing?'checked':''} ${canTeam('manageTeam')?'':'disabled'} style="width:auto"></label>
+          <label class="row" style="justify-content:space-between;margin:10px 0"><span>Require encrypted .hlk policy</span><input data-team-policy="requireHlkEncryption" type="checkbox" ${policies.requireHlkEncryption?'checked':''} ${canTeam('manageTeam')?'':'disabled'} style="width:auto"></label>
+          <label class="small muted">Idle timeout (minutes)</label><input data-team-policy-number="idleTimeoutMinutes" type="number" min="1" max="1440" value="${esc(policies.idleTimeoutMinutes)}" ${canTeam('manageTeam')?'':'disabled'}>
+          <hr><div class="small muted">Security controls are local/P2P policy enforcement. A hostile client can still modify its own local copy; WebRTC/Workspace cryptographic authority should be added for a truly adversarial network.</div>
+        </div>
+      </div>
+      <div class="card pad" style="margin-top:12px"><div class="spread"><h3>Audit Log</h3><span class="tag">last ${recent.length}</span></div>${recent.length?recent.map(a=>`<div class="message"><div class="meta"><b>${esc(a.action)}</b><span class="muted">${new Date(a.time).toLocaleString()}</span><span class="tag">${esc(a.level)}</span></div><div class="body">${esc(a.actorName)} — ${esc(a.detail)}</div></div>`).join(''):'<div class="empty">No audit events</div>'}</div>
+      `;
+  }
+
+  // ---------- Experimental Objects ----------
+  function newObject(){
+    if(!canTeam("manageObjects")) return;
+    if(!requireTeamPermission("manageObjects")) return;
+    modal(`<h2>Create Experimental Object</h2><div class="small muted">Object는 Helack의 다른 기능과 연결할 수 있는 범용 업무 데이터 단위입니다.</div><input id="objType" style="margin-top:9px" placeholder="issue"><input id="objName" style="margin-top:8px" placeholder="API migration"><textarea id="objProps" style="margin-top:8px;min-height:150px" placeholder='{"priority":"high","owner":"anonymous"}'></textarea><input id="objRelations" style="margin-top:8px" placeholder="related object IDs, comma-separated"><div class="row" style="margin-top:10px"><button class="btn primary" id="saveObject">Create</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+    document.getElementById("saveObject").onclick=()=>{
+      const type=document.getElementById("objType").value.trim()||"generic";
+      const name=document.getElementById("objName").value.trim()||`Object ${shortId()}`;
+      let properties={};
+      try{properties=JSON.parse(document.getElementById("objProps").value||"{}");if(!properties||typeof properties!=="object"||Array.isArray(properties))throw new Error("properties must be a JSON object");}
+      catch(e){alert("Properties JSON error: "+e.message);return;}
+      const relations=document.getElementById("objRelations").value.split(",").map(x=>x.trim()).filter(Boolean);
+      const o={id:crypto.randomUUID(),type,name,properties,relations,createdBy:state.identity.id,createdAt:isoNow(),updatedAt:isoNow()};
+      state.workspace.objects.push(o); addAudit("object.create",`${type}/${name}`); saveLocal(); broadcast({kind:"objects",value:o}); closeModal(); render();
+    };
+  }
+  function openObject(id){
+    const o=state.workspace.objects.find(x=>x.id===id);if(!o)return;
+    modal(`<h2>${esc(o.name)}</h2><div class="row"><span class="tag">${esc(o.type)}</span><span class="small muted">${esc(o.id)}</span></div><hr><h3>Properties</h3><pre class="code">${esc(JSON.stringify(o.properties,null,2))}</pre><h3>Relations</h3><div class="small muted">${o.relations.length?o.relations.map(esc).join(' · '):'(none)'}</div><hr><button class="btn" onclick="closeModal()">Close</button>`);
+  }
+  function objectsView(){
+    const objs=state.workspace.objects;
+    return `<div class="spread"><div><h2>Objects</h2><div class="muted">Experimental generic object system — 업무 데이터 모델을 자유롭게 확장</div></div><button class="btn primary" data-action="new-object">+ Object</button></div>
+      <div class="notice" style="margin-top:12px">실험적 기능입니다. Object는 특정 서비스 기능에 고정되지 않고 <code>type + properties + relations</code>로 정의되며 Wiki/Project/Room/Document와 연결할 수 있는 확장 지점입니다.</div>
+      <div class="grid cols3" style="margin-top:12px">${objs.length?objs.map(o=>`<div class="card pad"><div class="spread"><span class="tag">${esc(o.type)}</span><button class="linkbtn" data-open-object="${esc(o.id)}">Open</button></div><h3 style="margin-top:9px">${esc(o.name)}</h3><div class="small muted">${Object.keys(o.properties||{}).length} properties · ${o.relations?.length||0} relations</div></div>`).join(''):'<div class="empty" style="grid-column:1/-1">No experimental objects</div>'}</div>`;
+  }
+
   // ---------- Commands ----------
   function handleCommand(text) {
     if(!text.startsWith("/")) return false;
@@ -541,7 +780,7 @@ a{color:#aabdff}
     document.getElementById("peerCount").textContent=`${state.workspace.peers.length} peers`;
     document.getElementById("objectCount").textContent=`${allObjects()} objects`;
     document.getElementById("statusTag").textContent=state.peer.channel?.readyState==="open"?"P2P Connected":"Local Workspace";
-    const titles={overview:"Overview",room:"Rooms",wiki:"Wiki",docs:"Documents",projects:"Projects",links:"Open Links",hsh:"HSH",hstscript:"HstScript"};
+    const titles={overview:"Overview",room:"Rooms",wiki:"Wiki",docs:"Documents",projects:"Projects",links:"Open Links",teams:"Teams Security",objects:"Objects (Experimental)",hsh:"HSH",hstscript:"HstScript"};
     document.getElementById("pageTitle").textContent=titles[state.view]||"Helack";
     const root=document.getElementById("view");
     if(state.view==="overview") root.innerHTML=overviewView();
@@ -550,23 +789,31 @@ a{color:#aabdff}
     if(state.view==="docs") root.innerHTML=docsView();
     if(state.view==="projects") root.innerHTML=projectsView();
     if(state.view==="links") root.innerHTML=linksView();
+    if(state.view==="teams") root.innerHTML=teamsView();
+    if(state.view==="objects") root.innerHTML=objectsView();
     if(state.view==="hsh") root.innerHTML=hshView();
     if(state.view==="hstscript") root.innerHTML=hstScriptView();
   }
 
   function overviewView(){
-    const w=state.workspace;
-    return `<div class="spread"><div><h2>${esc(w.name)}</h2><div class="muted">익명 · 서버리스 · WebRTC 기반 업무 Workspace</div></div><button class="btn" data-action="rename-workspace">Rename</button></div>
+    const w=state.workspace, activity=(w.activity||[]).slice(0,10);
+    return `<div class="spread"><div><h2>${esc(w.name)}</h2><div class="muted">익명 · 서버리스 · WebRTC 기반 업무 Workspace</div></div><div class="row">${unreadNotifications()?`<button class="btn" data-action="notifications">${unreadNotifications()} Notifications</button>`:''}<button class="btn" data-action="rename-workspace">Rename</button></div></div>
+      <div class="searchbar" style="margin-top:14px"><input id="globalSearch" placeholder="Search Workspace…"><button class="btn primary" data-action="global-search">Search</button></div>
+      <div id="globalSearchResult" class="card pad" style="display:none"></div>
       <div class="grid cols3" style="margin-top:14px">
         <div class="card pad"><div class="small muted">Rooms</div><div class="kpi">${w.rooms.length}</div></div>
         <div class="card pad"><div class="small muted">Messages</div><div class="kpi">${w.messages.length}</div></div>
         <div class="card pad"><div class="small muted">Projects</div><div class="kpi">${w.projects.length}</div></div>
+        <div class="card pad"><div class="small muted">Wiki Pages</div><div class="kpi">${w.wiki.length}</div></div>
+        <div class="card pad"><div class="small muted">Documents</div><div class="kpi">${w.documents.length}</div></div>
+        <div class="card pad"><div class="small muted">Objects</div><div class="kpi">${w.objects.length}</div></div>
       </div>
       <div class="grid cols2" style="margin-top:12px">
-        <div class="card pad"><h3>Core Objects</h3><div class="small muted">Room · Command · Thread · Comment · Wiki · Documents · Kanban · Open Link</div><hr><div class="small"><code>.hlk</code>로 Workspace를 바이너리 내보내고 다시 불러올 수 있습니다.</div></div>
-        <div class="card pad"><h3>Quick Start</h3><div class="small muted">왼쪽 메뉴에서 Room / Wiki / Documents / Projects / Open Links를 선택하세요.</div><hr><button class="btn primary" data-action="new-room">Create Room</button></div>
+        <div class="card pad"><h3>Recent Activity</h3>${activity.length?activity.map(a=>`<div class="wiki-page"><div class="small muted">${new Date(a.time).toLocaleString()}</div><div>${esc(a.actor)} · ${esc(a.detail)}</div></div>`).join(''):'<div class="empty">No activity</div>'}</div>
+        <div class="card pad"><h3>Workspace Tools</h3><div class="small muted">Room search, message pinning, reactions, notifications, global search, project filtering, and Object management.</div><hr><div class="row"><button class="btn primary" data-action="new-room">Create Room</button><button class="btn" data-action="new-task">Create Task</button><button class="btn" data-action="new-object">Create Object</button></div></div>
       </div>`;
   }
+
 
   let activeRoomId=null;
   function ensureRoom(){ if(!activeRoomId && state.workspace.rooms[0]) activeRoomId=state.workspace.rooms[0].id; }
@@ -576,30 +823,39 @@ a{color:#aabdff}
     const rooms=state.workspace.rooms;
     const room=rooms.find(r=>r.id===activeRoomId)||rooms[0];
     if(room) activeRoomId=room.id;
-    const msgs=state.workspace.messages.filter(m=>m.roomId===room?.id);
-    return `<div class="spread"><div><h2>Rooms</h2><div class="muted">업무별 대화 · Threads · Commands</div></div><button class="btn" data-action="new-room">+ Room</button></div>
-      <div class="grid" style="grid-template-columns:180px minmax(0,1fr);margin-top:12px;min-height:580px">
-        <div class="card pad"><h3>Rooms</h3><div>${rooms.map(r=>`<button class="navbtn ${r.id===room?.id?'active':''}" style="width:100%;margin:3px 0;text-align:left;background:${r.id===room?.id?'#192646':'transparent'};border:0;color:#fff;padding:8px;border-radius:7px;cursor:pointer" data-room="${r.id}"># ${esc(r.name)}</button>`).join("")}</div></div>
+    const q=(window.__roomSearch||'').toLowerCase();
+    const pinnedOnly=!!window.__roomPinned;
+    let msgs=state.workspace.messages.filter(m=>m.roomId===room?.id);
+    if(q) msgs=msgs.filter(m=>(m.content+' '+m.authorName).toLowerCase().includes(q));
+    if(pinnedOnly) msgs=msgs.filter(m=>state.workspace.pins.includes(m.id));
+    const rs=(state.workspace.roomSettings||{})[room?.id]||{};
+    return `<div class="spread"><div><h2>Rooms</h2><div class="muted">업무별 대화 · Threads · Commands</div></div><div class="row">${unreadNotifications()?`<span class="chip">${unreadNotifications()} notifications</span>`:''}<button class="btn" data-action="new-room">+ Room</button></div></div>
+      <div class="grid" style="grid-template-columns:180px minmax(0,1fr);margin-top:12px;min-height:600px">
+        <div class="card pad"><h3>Rooms</h3><div>${rooms.map(r=>`<button class="navbtn ${r.id===room?.id?'active':''}" style="width:100%;margin:3px 0;text-align:left;background:${r.id===room?.id?'#192646':'transparent'};border:0;color:#fff;padding:8px;border-radius:7px;cursor:pointer" data-room="${r.id}"># ${esc(r.name)}</button>`).join('')}</div><hr><button class="btn" style="width:100%" data-action="notifications">Notifications</button><button class="btn" style="width:100%;margin-top:6px" data-action="room-settings">Room Settings</button></div>
         <div class="card" style="padding:0;overflow:hidden;display:flex;flex-direction:column">
-          <div style="padding:14px;border-bottom:1px solid var(--line)"><div class="spread"><div><h3># ${esc(room?.name||"No room")}</h3><div class="small muted">${esc(room?.topic||"")}</div></div><div class="row"><span class="tag">${msgs.length} messages</span>${room?'<button class="btn" data-share-room="'+room.id+'">Share Room</button>':''}</div></div></div>
-          <div class="list" style="flex:1">${msgs.length?msgs.map(messageHtml).join(""):'<div class="empty">아직 메시지가 없습니다.</div>'}</div>
-          <div style="padding:12px;border-top:1px solid var(--line)">
-            <div class="composer"><input id="messageInput" placeholder="메시지 또는 /command…"><button class="btn primary" data-action="send-message">Send</button></div>
-            <div class="small muted" style="margin-top:6px">/room 이름 · /task 작업 · /wiki 제목 · /link URL</div>
+          <div style="padding:12px;border-bottom:1px solid var(--line)"><div class="spread"><div><h3># ${esc(room?.name||'No room')}</h3><div class="small muted">${esc(room?.topic||'')}</div></div><div class="row"><span class="tag">${msgs.length} visible</span>${room?'<button class="btn" data-share-room="'+room.id+'">Share Room</button>':''}</div></div>
+            <div class="searchbar" style="margin-top:10px"><input id="roomSearch" value="${esc(window.__roomSearch||'')}" placeholder="Search this room…"><button class="btn" data-action="room-search">Search</button><button class="btn" data-action="room-pin-filter">${pinnedOnly?'All':'Pinned'}</button></div>
           </div>
+          <div class="list" style="flex:1">${msgs.length?msgs.map(messageHtml).join(''):'<div class="empty">No matching messages.</div>'}</div>
+          <div style="padding:12px;border-top:1px solid var(--line)"><div class="composer"><input id="messageInput" placeholder="메시지 또는 /command…"><button class="btn primary" data-action="send-message">Send</button></div><div class="small muted" style="margin-top:6px">/room 이름 · /task 작업 · /wiki 제목 · /link URL · /hsh 명령</div>${rs.readOnly?'<div class="small" style="color:#ff9aa6;margin-top:5px">Read-only room</div>':''}</div>
         </div>
       </div>`;
   }
 
   function messageHtml(m){
     const threads=state.workspace.threads.filter(t=>t.messageId===m.id);
-    return `<div class="message">
-      <div class="meta"><div class="avatar">${esc(m.authorName.slice(-2))}</div><b>${esc(m.authorName)}</b><span class="muted">${new Date(m.createdAt).toLocaleString()}</span></div>
+    const comments=state.workspace.comments.filter(c=>c.targetId===m.id && c.targetType==='message');
+    const pinned=state.workspace.pins.includes(m.id);
+    const rr=state.workspace.reactions[m.id]||{};
+    return `<div class="message ${pinned?'pinned':''}">
+      <div class="meta"><div class="avatar">${esc(m.authorName.slice(-2))}</div><b>${esc(m.authorName)}</b><span class="muted">${new Date(m.createdAt).toLocaleString()}</span>${pinned?'<span class="chip">Pinned</span>':''}</div>
       <div class="body">${esc(m.content)}</div>
-      <div class="actions"><button class="linkbtn" data-thread="${m.id}">Thread (${threads.length})</button><button class="linkbtn" data-comment="${m.id}">Comment</button></div>
-      ${threads.map(t=>`<div class="thread"><b>${esc(t.authorName)}</b> <span class="muted">thread</span><div>${esc(t.content)}</div></div>`).join("")}
+      <div class="actions"><button class="linkbtn" data-thread="${m.id}">Thread (${threads.length})</button><button class="linkbtn" data-comment="${m.id}">Comment (${comments.length})</button><button class="linkbtn" data-pin="${m.id}">${pinned?'Unpin':'Pin'}</button><button class="linkbtn" data-react="${m.id}" data-reaction="👍">👍 ${rr['👍']?.length||0}</button><button class="linkbtn" data-react="${m.id}" data-reaction="✅">✅ ${rr['✅']?.length||0}</button><button class="linkbtn" data-react="${m.id}" data-reaction="🚀">🚀 ${rr['🚀']?.length||0}</button></div>
+      ${threads.map(t=>`<div class="thread"><b>${esc(t.authorName)}</b> <span class="muted">thread</span><div>${esc(t.content)}</div></div>`).join('')}
+      ${comments.map(c=>`<div class="thread"><b>${esc(c.authorName)}</b> <span class="muted">comment</span><div>${esc(c.content)}</div></div>`).join('')}
     </div>`;
   }
+
 
   function wikiView(){
     return `<div class="spread"><div><h2>Wiki</h2><div class="muted">Workspace knowledge base</div></div><button class="btn primary" data-action="new-wiki">+ Page</button></div>
@@ -633,7 +889,15 @@ a{color:#aabdff}
   }
 
   // ---------- Dialogs / mutations ----------
+  function showRoomSettings(){
+    const room=state.workspace.rooms.find(r=>r.id===activeRoomId); if(!room)return;
+    const cur=state.workspace.roomSettings[room.id]||{readOnly:false,slowMode:0,allowReactions:true};
+    modal(`<h2>Room Settings</h2><label class="small muted">Topic</label><input id="rsTopic" value="${esc(room.topic||'')}"><label class="small muted" style="display:block;margin-top:9px">Slow mode (seconds)</label><input id="rsSlow" type="number" min="0" value="${cur.slowMode||0}"><label class="row" style="margin-top:9px"><input id="rsReadonly" type="checkbox" style="width:auto" ${cur.readOnly?'checked':''}> Read-only</label><label class="row" style="margin-top:8px"><input id="rsReact" type="checkbox" style="width:auto" ${cur.allowReactions!==false?'checked':''}> Allow reactions</label><div class="row" style="margin-top:12px"><button class="btn primary" id="saveRs">Save</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+    document.getElementById('saveRs').onclick=()=>{room.topic=document.getElementById('rsTopic').value.trim();state.workspace.roomSettings[room.id]={readOnly:document.getElementById('rsReadonly').checked,slowMode:Math.max(0,Number(document.getElementById('rsSlow').value)||0),allowReactions:document.getElementById('rsReact').checked};recordActivity('room-settings',`Updated #${room.name}`,room.id);saveLocal();closeModal();render();};
+  }
+
   function newRoom(){
+    if(!canTeam("manageRooms")) return;
     modal(`<h2>Create Room</h2><input id="roomName" placeholder="backend"><input id="roomTopic" style="margin-top:8px" placeholder="Topic"><div class="row" style="margin-top:10px"><button class="btn primary" id="saveRoom">Create</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
     document.getElementById("saveRoom").onclick=()=>{
       const r={id:crypto.randomUUID(),name:document.getElementById("roomName").value.trim()||"general",topic:document.getElementById("roomTopic").value.trim()};
@@ -641,6 +905,7 @@ a{color:#aabdff}
     };
   }
   function sendMessage(){
+    if(!canTeam("write")) return;
     const el=document.getElementById("messageInput"); if(!el) return;
     const text=el.value.trim(); if(!text) return;
     if(handleCommand(text)){el.value="";render();return}
@@ -649,6 +914,7 @@ a{color:#aabdff}
     state.workspace.messages.push(m); saveLocal(); broadcast({kind:"messages",value:m}); el.value=""; render();
   }
   function newWiki(){
+    if(!canTeam("manageDocs")) return;
     modal(`<h2>New Wiki Page</h2><input id="wTitle" placeholder="Deployment"><textarea id="wBody" style="margin-top:8px" placeholder="Write wiki content…"></textarea><div class="row" style="margin-top:10px"><button class="btn primary" id="saveWiki">Create</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
     document.getElementById("saveWiki").onclick=()=>{
       const w={id:crypto.randomUUID(),title:document.getElementById("wTitle").value.trim()||"Untitled",body:document.getElementById("wBody").value,updatedAt:isoNow()};
@@ -660,6 +926,7 @@ a{color:#aabdff}
     modal(`<h2>${esc(w.title)}</h2><div class="small muted">Wiki Page</div><hr><div style="white-space:pre-wrap;line-height:1.5">${esc(w.body||"")}</div><hr><button class="btn" onclick="closeModal()">Close</button>`);
   }
   function newDoc(){
+    if(!canTeam("manageDocs")) return;
     modal(`<h2>New Document</h2><input id="dTitle" placeholder="Meeting Notes"><select id="dType" style="margin-top:8px"><option value="text">Text</option><option value="markdown">Markdown</option><option value="spec">Specification</option></select><textarea id="dBody" style="margin-top:8px" placeholder="Document contents…"></textarea><div class="row" style="margin-top:10px"><button class="btn primary" id="saveDoc">Create</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
     document.getElementById("saveDoc").onclick=()=>{
       const d={id:crypto.randomUUID(),title:document.getElementById("dTitle").value.trim()||"Untitled",type:document.getElementById("dType").value,body:document.getElementById("dBody").value,createdAt:isoNow()};
@@ -670,8 +937,10 @@ a{color:#aabdff}
     const d=state.workspace.documents.find(x=>x.id===id); if(!d) return;
     modal(`<h2>${esc(d.title)}</h2><div class="small muted">${esc(d.type)}</div><hr><pre class="code">${esc(d.body||"")}</pre><button class="btn" onclick="closeModal()">Close</button>`);
   }
-  function newProject(){ createProject(true); setView("projects"); }
+  function newProject(){
+    if(!canTeam("manageProjects")) return; createProject(true); setView("projects"); }
   function newTask(){
+    if(!canTeam("manageProjects")) return;
     const p=state.workspace.projects[0]||createProject(false);
     modal(`<h2>New Task</h2><input id="tTitle" placeholder="Implement API"><input id="tAssignee" style="margin-top:8px" placeholder="Anonymous ID / name"><textarea id="tDesc" style="margin-top:8px" placeholder="Description"></textarea><div class="row" style="margin-top:10px"><button class="btn primary" id="saveTask">Create</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
     document.getElementById("saveTask").onclick=()=>{
@@ -683,6 +952,7 @@ a{color:#aabdff}
     for(const p of state.workspace.projects){const t=p.tasks.find(x=>x.id===id);if(t){t.status=status;saveLocal();render();broadcast({kind:"projects",value:p});return;}}
   }
   function newLink(){
+    if(!canTeam("write")) return;
     modal(`<h2>Open Link</h2><input id="lUrl" placeholder="https://example.com"><input id="lTitle" style="margin-top:8px" placeholder="Title"><div class="row" style="margin-top:10px"><button class="btn primary" id="saveLink">Add</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
     document.getElementById("saveLink").onclick=()=>{
       const url=document.getElementById("lUrl").value.trim(); if(!/^https?:\/\//i.test(url)) return alert("http:// 또는 https:// URL을 입력하세요.");
@@ -1069,6 +1339,19 @@ a{color:#aabdff}
       const url=args[1]||"";if(!/^https?:\/\//i.test(url))result=hshResult(false,"link add requires http:// or https:// URL");else{const l={id:crypto.randomUUID(),url,title:url,createdAt:isoNow()};state.workspace.links.push(l);saveLocal();broadcast({kind:"links",value:l});state.view="links";result=hshResult(true,`Link added: ${url}`,l);}
     } else if(cmd==="project"&&args[0]==="list"){
       result=hshResult(true,state.workspace.projects.map(p=>`${p.name} (${p.tasks.length} tasks)`).join("\n")||"(no projects)",state.workspace.projects);
+    } else if(cmd==="object"&&args[0]==="create"){
+      if(!canTeam("manageObjects")) result=hshResult(false,"permission denied");
+      else {const type=args[1]||"generic",name=args.slice(2).join(" ")||`Object ${shortId()}`;const o={id:crypto.randomUUID(),type,name,properties:{},relations:[],createdBy:state.identity.id,createdAt:isoNow(),updatedAt:isoNow()};state.workspace.objects.push(o);addAudit("object.create",`${type}/${name}`);saveLocal();broadcast({kind:"objects",value:o});state.view="objects";result=hshResult(true,`Object created: ${type}/${name}`,o);}
+    } else if(cmd==="object"&&args[0]==="list"){
+      result=hshResult(true,state.workspace.objects.map(o=>`${o.type}: ${o.name}`).join("\n")||"(no objects)",state.workspace.objects);
+    } else if(cmd==="team"&&args[0]==="lock"){
+      if(!canTeam("manageTeam")) result=hshResult(false,"permission denied"); else {state.workspace.team.policies.locked=true;addAudit("team.lock","Workspace locked","security");saveLocal();broadcast({kind:"team",value:state.workspace.team});result=hshResult(true,"Team security lock enabled");}
+    } else if(cmd==="team"&&args[0]==="unlock"){
+      if(!canTeam("manageTeam")) result=hshResult(false,"permission denied"); else {state.workspace.team.policies.locked=false;addAudit("team.unlock","Workspace unlocked","security");saveLocal();broadcast({kind:"team",value:state.workspace.team});result=hshResult(true,"Team security lock disabled");}
+    } else if(cmd==="team"&&args[0]==="audit"){
+      result=hshResult(true,state.workspace.team.audit.slice(-20).map(a=>`${a.time} ${a.action} — ${a.detail}`).join("\n")||"(no audit events)",state.workspace.team.audit);
+    } else if(cmd==="team"&&args[0]==="invite"){
+      const inv=createTeamInvite();result=inv?hshResult(true,inv.code,inv):hshResult(false,"permission denied");
     } else if(cmd==="export"){exportHlk();result=hshResult(true,"Export started");}
     else if(cmd==="hst"||cmd==="hstscript"){const r=executeHstScript(args.join(" "));window.__hstLastOutput=r.output;state.view="hstscript";result=hshResult(r.ok,r.output);}
     else result=hshResult(false,`Unknown HSH command: ${raw}. Try "help".`);
@@ -1182,6 +1465,11 @@ message("backend", "Build started")</pre>
       else if(x==="new-task") newTask();
       else if(x==="new-link") newLink();
       else if(x==="rename-workspace") renameWorkspace();
+      else if(x==="notifications") showNotifications();
+      else if(x==="room-settings") showRoomSettings();
+      else if(x==="room-search") { window.__roomSearch=document.getElementById("roomSearch")?.value||""; render(); }
+      else if(x==="room-pin-filter") { window.__roomPinned=!window.__roomPinned; render(); }
+      else if(x==="global-search") globalSearch();
       else if(x==="run-hsh") {
         const el=document.getElementById("hshInput");
         if(el) runHsh(el.value);
@@ -1193,6 +1481,10 @@ message("backend", "Build started")</pre>
       else if(x==="hst-clear") clearHstCli();
       else if(x==="hst-example") runHstExampleCli();
       else if(x==="load-hst-example") runHstExampleCli();
+      else if(x==="create-team-invite") showCreateInvite();
+      else if(x==="accept-team-invite") showAcceptInvite();
+      else if(x==="toggle-team-lock") toggleTeamLock();
+      else if(x==="new-object") newObject();
       return;
     }
     const r=e.target.closest("[data-room]"); if(r){activeRoomId=r.dataset.room;render();return}
@@ -1203,6 +1495,9 @@ message("backend", "Build started")</pre>
     const mt=e.target.closest("[data-move-task]"); if(mt){moveTask(mt.dataset.moveTask,mt.dataset.status);return}
     const ct=e.target.closest("[data-comment-task]"); if(ct){commentTask(ct.dataset.commentTask);return}
     const sr=e.target.closest("[data-share-room]"); if(sr){makeRoomShareLink(sr.dataset.shareRoom);return}
+    const so=e.target.closest("[data-open-object]"); if(so){openObject(so.dataset.openObject);return}
+    const pin=e.target.closest("[data-pin]"); if(pin){togglePin(pin.dataset.pin);return}
+    const react=e.target.closest("[data-react]"); if(react){toggleReaction(react.dataset.react,react.dataset.reaction);return}
   });
 
   document.getElementById("fileInput").addEventListener("change",e=>{
@@ -1211,12 +1506,20 @@ message("backend", "Build started")</pre>
   document.getElementById("quickCmd").addEventListener("keydown",e=>{
     if(e.key==="Enter"){
       const ok=handleCommand(e.target.value.trim());
-      if(!ok && e.target.value.trim()) alert("Unknown command. Try /room, /task, /wiki, /link");
+      if(!ok && e.target.value.trim()) alert("Unknown command. Try /room, /task, /wiki, /link, /hsh");
       e.target.value=""; render();
     }
   });
   document.addEventListener("input",e=>{
     if(state.view==="hstscript" && e.target?.id==="hstCliInput") resizeHstInput(e.target);
+    if(state.view==="teams" && e.target?.matches("[data-team-policy-number]") && canTeam("manageTeam")){
+      const key=e.target.dataset.teamPolicyNumber; const value=Math.max(1,Math.min(1440,Number(e.target.value)||60));
+      state.workspace.team.policies[key]=value; addAudit("policy."+key,String(value),"security"); saveLocal(); broadcast({kind:"team",value:state.workspace.team});
+    }
+  });
+  document.addEventListener("change",e=>{
+    if(state.view==="teams" && e.target?.matches("[data-team-policy]")) teamPolicyChange(e.target.dataset.teamPolicy,!!e.target.checked);
+    if(state.view==="teams" && e.target?.matches("[data-role-member]")) changeMemberRole(e.target.dataset.roleMember,e.target.value);
   });
 
   document.addEventListener("keydown",e=>{
