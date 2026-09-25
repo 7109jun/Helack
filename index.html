@@ -1024,6 +1024,12 @@ hst x = 10\nif x &gt; 5:\n    print("large")</pre>
 
   window.__hstCli=window.__hstCli||[];
 
+  function resizeHstInput(el){
+    if(!el) return;
+    el.style.height="auto";
+    el.style.height=Math.min(el.scrollHeight,260)+"px";
+  }
+
   function runHstCliLine(source){
     const code=String(source||'').trim();
     if(!code) return;
@@ -1034,7 +1040,7 @@ hst x = 10\nif x &gt; 5:\n    print("large")</pre>
     requestAnimationFrame(()=>{
       const input=document.getElementById('hstCliInput');
       const terminal=document.getElementById('hstTerminal');
-      if(input){input.value='';input.focus();}
+      if(input){input.value='';resizeHstInput(input);input.focus();}
       if(terminal) terminal.scrollTop=terminal.scrollHeight;
     });
   }
@@ -1051,17 +1057,17 @@ hst x = 10\nif x &gt; 5:\n    print("large")</pre>
   }
 
   function hstScriptView(){
-    return `<div class="spread"><div><h2>HstScript</h2><div class="muted">Python 계열 문법 · Helack JavaScript Sandbox</div></div><span class="tag">CLI</span></div>
+    return `<div class="spread"><div><h2>HstScript</h2><div class="muted">Python 계열 문법 · Helack JavaScript Sandbox</div></div><span class="tag">CLI · Ctrl+Enter 실행</span></div>
       <div class="card" style="margin-top:12px;overflow:hidden;background:#090e19;border-color:#202a40">
         <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:#0d1425">
-          <span class="tag">hstscript</span><span class="small muted">Enter로 실행</span>
+          <span class="tag">hstscript</span><span class="small muted">Enter 줄바꿈 · Ctrl+Enter 실행</span>
           <div style="margin-left:auto;display:flex;gap:8px"><button class="btn" data-action="hst-clear">Clear</button><button class="btn" data-action="hst-example">Example</button></div>
         </div>
         <div id="hstTerminal" style="height:560px;overflow:auto;padding:14px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;line-height:1.55">
           <div class="muted">HstScript CLI v0.1</div>
           <div class="muted">Python-like syntax · restricted JavaScript sandbox</div>
-          ${(window.__hstCli||[]).map(x=>x.kind==='cmd'?`<div style="margin-top:10px"><span style="color:#7fa2ff">$</span> ${esc(x.text)}</div>`:`<div style="white-space:pre-wrap;color:${x.error?'#ff9aa6':'#d7def0'}">${esc(x.text)}</div>`).join('')}
-          <div class="row" style="margin-top:10px;align-items:flex-start"><span style="color:#7fa2ff">$</span><textarea id="hstCliInput" aria-label="HstScript command" style="flex:1;background:transparent;border:0;padding:0;min-height:26px;height:26px;resize:none;color:#fff;box-shadow:none;font-family:inherit;line-height:1.55" placeholder='print("Hello")'></textarea></div>
+          ${(window.__hstCli||[]).map(x=>x.kind==='cmd'?`<div style="margin-top:10px;white-space:pre-wrap">${esc(x.text)}</div>`:`<div style="white-space:pre-wrap;color:${x.error?'#ff9aa6':'#d7def0'}">${esc(x.text)}</div>`).join('')}
+          <div class="row" style="margin-top:10px;align-items:flex-start"><textarea id="hstCliInput" aria-label="HstScript command" rows="1" style="flex:1;background:transparent;border:0;padding:0;min-height:26px;max-height:260px;resize:none;overflow-y:auto;color:#fff;box-shadow:none;font-family:inherit;line-height:1.55" placeholder='print("Hello")'></textarea></div>
         </div>
       </div>
       <div class="card pad" style="margin-top:12px">
@@ -1137,10 +1143,14 @@ message("backend", "Build started")</pre>
       e.target.value=""; render();
     }
   });
+  document.addEventListener("input",e=>{
+    if(state.view==="hstscript" && e.target?.id==="hstCliInput") resizeHstInput(e.target);
+  });
+
   document.addEventListener("keydown",e=>{
     if(state.view==="room" && e.key==="Enter" && document.activeElement?.id==="messageInput"){sendMessage();}
     if(state.view==="hsh" && e.key==="Enter" && document.activeElement?.id==="hshInput"){runHsh(document.getElementById("hshInput").value);}
-    if(state.view==="hstscript" && e.key==="Enter" && !e.shiftKey && document.activeElement?.id==="hstCliInput"){
+    if(state.view==="hstscript" && (e.ctrlKey||e.metaKey) && e.key==="Enter" && document.activeElement?.id==="hstCliInput"){
       e.preventDefault();
       runHstCliLine(document.getElementById("hstCliInput").value);
     }
