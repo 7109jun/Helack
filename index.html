@@ -118,7 +118,7 @@ a{color:#aabdff}
           <hr>
           <div class="row"><span class="tag" id="peerCount">0 peers</span><span class="tag" id="objectCount">0 objects</span></div>
           <hr>
-          <div class="small muted">`.hlk` is a binary package. This build stores a structured binary payload; the UI restores the original text/object model when loaded.</div>
+          <div class="small muted"><code>.hlk</code> is a binary package. This build stores a structured binary payload; the UI restores the original text/object model when loaded.</div>
         </div>
         <div class="card pad" style="margin-top:12px">
           <h3>Quick Command</h3>
@@ -563,7 +563,7 @@ a{color:#aabdff}
         <div class="card pad"><div class="small muted">Projects</div><div class="kpi">${w.projects.length}</div></div>
       </div>
       <div class="grid cols2" style="margin-top:12px">
-        <div class="card pad"><h3>Core Objects</h3><div class="small muted">Room · Command · Thread · Comment · Wiki · Documents · Kanban · Open Link</div><hr><div class="small">`.hlk`로 Workspace를 바이너리 내보내고 다시 불러올 수 있습니다.</div></div>
+        <div class="card pad"><h3>Core Objects</h3><div class="small muted">Room · Command · Thread · Comment · Wiki · Documents · Kanban · Open Link</div><hr><div class="small"><code>.hlk</code>로 Workspace를 바이너리 내보내고 다시 불러올 수 있습니다.</div></div>
         <div class="card pad"><h3>Quick Start</h3><div class="small muted">왼쪽 메뉴에서 Room / Wiki / Documents / Projects / Open Links를 선택하세요.</div><hr><button class="btn primary" data-action="new-room">Create Room</button></div>
       </div>`;
   }
@@ -629,7 +629,7 @@ a{color:#aabdff}
 
   function linksView(){
     return `<div class="spread"><div><h2>Open Links</h2><div class="muted">외부 URL을 업무 객체로 관리</div></div><button class="btn primary" data-action="new-link">+ Link</button></div>
-      <div class="card pad" style="margin-top:12px">${state.workspace.links.length?state.workspace.links.map(l=>`<div class="link-item"><div class="spread"><div><b>${esc(l.title||l.url)}</b><div class="small muted">${esc(l.url)}</div></div><a href="${esc(l.url)}" target="_blank" rel="noopener">Open ↗</a></div></div>`).join(""):'<div class="empty">No links</div>'}</div>`;
+      <div class="card pad" style="margin-top:12px">${state.workspace.links.length?state.workspace.links.map(l=>`<div class="link-item"><div class="spread"><div><b>${esc(l.title||l.url)}</b><div class="small muted">${esc(l.url)}</div></div><a href="${/^https?:\/\//i.test(l.url)?esc(l.url):'#'}" target="_blank" rel="noopener">Open ↗</a></div></div>`).join(""):'<div class="empty">No links</div>'}</div>`;
   }
 
   // ---------- Dialogs / mutations ----------
@@ -715,10 +715,10 @@ a{color:#aabdff}
 
   // ---------- HSH / HstScript ----------
   // HstScript is a Python-like language executed by a restricted JavaScript runtime.
-  // It intentionally does not expose eval(), Function(), arbitrary DOM access,
+  // It intentionally does not expose dynamic JavaScript evaluation or Function(), arbitrary DOM access,
   // filesystem, OS process execution, or arbitrary network APIs.
   const hshHistory = [];
-  const hstRuntime = { vars:Object.create(null), functions:Object.create(null) };
+  const hstRuntime = { vars:Object.create(null), functions:Object.create(null), currentOutput:null };
 
   function hshResult(ok, message, data) {
     return {ok, message, data: data ?? null, time: isoNow()};
@@ -800,6 +800,30 @@ a{color:#aabdff}
           if(step>0){for(let n=start;n<end;n+=step)arr.push(n);}
           else {for(let n=start;n>end;n+=step)arr.push(n);}
           v=arr;
+        } else if(peek()?.v==="(") {
+          eat("(");
+          const args=[];
+          while(peek() && peek().v!==")") {
+            args.push(expression());
+            if(peek()?.v===",") eat(","); else break;
+          }
+          eat(")");
+          if(hstRuntime.functions[x.v]) {
+            const f=hstRuntime.functions[x.v];
+            const local=Object.create(env);
+            f.params.forEach((name,idx)=>local[name]=args[idx]);
+            const temp=[];
+            try {
+              executeBlock(f.lines,f.from,f.to,local,temp,1);
+              v=null;
+            } catch(ret) {
+              if(ret?.__return) v=ret.value;
+              else throw ret;
+            }
+            if(temp.length && hstRuntime.currentOutput) hstRuntime.currentOutput.push(...temp);
+          } else {
+            throw new Error("Unknown function: "+x.v);
+          }
         } else {
           v = Object.prototype.hasOwnProperty.call(env,x.v) ? env[x.v] : undefined;
           if(v===undefined) throw new Error("Undefined variable: "+x.v);
@@ -816,22 +840,37 @@ a{color:#aabdff}
       }
       if(x.v==="("){eat("(");const v=expression();eat(")");return v;}
       if(x.v==="["){
-        eat("[");const a=[];while(peek()&&peek().v!=="]"){a.push(expression());if(peek()?.v===",")eat(",");else break;}eat("]");return a;
+        eat("[");
+        const a=[];
+        while(peek()&&peek().v!=="]"){
+          a.push(expression());
+          if(peek()?.v===",") eat(","); else break;
+        }
+        eat("]");
+        let v=a;
+        while(peek()?.v==="."){
+          eat("."); const prop=eat().v; v=v?.[prop];
+        }
+        while(peek()?.v==="["){
+          eat("["); const idx=expression(); eat("]"); v=v?.[idx];
+        }
+        return v;
       }
       throw new Error("Invalid expression");
     }
     function unary(){
-      if(peek()?.v==="!" || peek()?.v==="not"){eat();return !unary();}
-      if(peek()?.v==="-"){eat("-");return -Number(unary());}
-      if(peek()?.v==="+"){eat("+");return Number(unary());}
+      if(peek()?.t==="op" && (peek()?.v==="!")){eat("!");return !unary();}
+      if(peek()?.t==="id" && peek()?.v==="not"){eat("not");return !unary();}
+      if(peek()?.t==="op" && peek()?.v==="-"){eat("-");return -Number(unary());}
+      if(peek()?.t==="op" && peek()?.v==="+"){eat("+");return Number(unary());}
       return primary();
     }
-    function power(){let v=unary();while(peek()?.v==="**"){eat("**");v=v**unary();}return v;}
-    function mul(){let v=power();while(["*","/","%"].includes(peek()?.v)){const op=eat().v;const r=power();v=op==="*" ? v*r : op==="/" ? v/r : v%r;}return v;}
-    function add(){let v=mul();while(["+","-"].includes(peek()?.v)){const op=eat().v;const r=mul();v=op==="+" ? v+r : v-r;}return v;}
-    function cmp(){let v=add();while(["==","!=","<","<=",">",">="].includes(peek()?.v)){const op=eat().v,r=add();v=op==="=="?v===r:op==="!="?v!==r:op==="<"?v<r:op==="<="?v<=r:op===">"?v>r:v>=r;}return v;}
-    function and(){let v=cmp();while(peek()?.v==="&&" || peek()?.v==="and"){eat();v=Boolean(v)&&Boolean(cmp());}return v;}
-    function expression(){let v=and();while(peek()?.v==="||" || peek()?.v==="or"){eat();v=Boolean(v)||Boolean(and());}return v;}
+    function power(){let v=unary();while(peek()?.t==="op" && peek()?.v==="**"){eat("**");v=v**unary();}return v;}
+    function mul(){let v=power();while(peek()?.t==="op" && ["*","/","%"].includes(peek()?.v)){const op=eat().v;const r=power();v=op==="*" ? v*r : op==="/" ? v/r : v%r;}return v;}
+    function add(){let v=mul();while(peek()?.t==="op" && ["+","-"].includes(peek()?.v)){const op=eat().v;const r=mul();v=op==="+" ? v+r : v-r;}return v;}
+    function cmp(){let v=add();while(peek()?.t==="op" && ["==","!=","<","<=",">",">="].includes(peek()?.v)){const op=eat().v,r=add();v=op==="=="?v===r:op==="!="?v!==r:op==="<"?v<r:op==="<="?v<=r:op===">"?v>r:v>=r;}return v;}
+    function and(){let v=cmp();while((peek()?.t==="op"&&peek()?.v==="&&")||(peek()?.t==="id"&&peek()?.v==="and")){eat();v=Boolean(v)&&Boolean(cmp());}return v;}
+    function expression(){let v=and();while((peek()?.t==="op"&&peek()?.v==="||")||(peek()?.t==="id"&&peek()?.v==="or")){eat();v=Boolean(v)||Boolean(and());}return v;}
     const v=expression();
     if(i<t.length) throw new Error("Unexpected token: "+t[i].v);
     return v;
@@ -854,6 +893,35 @@ a{color:#aabdff}
     while(end<lines.length && lines[end].indent>indent) end++;
     if(end===index+1) throw new Error("Expected indented block at line "+lines[index].line);
     return [index+1,end];
+  }
+
+  function splitCallArgs(source) {
+    const args = [];
+    let start = 0;
+    let quote = null;
+    let escape = false;
+    let depth = 0;
+    const text = String(source ?? "");
+
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (escape) { escape = false; continue; }
+      if (quote) {
+        if (c === "\\") { escape = true; continue; }
+        if (c === quote) quote = null;
+        continue;
+      }
+      if (c === '"' || c === "'") { quote = c; continue; }
+      if (c === '(' || c === '[' || c === '{') { depth++; continue; }
+      if (c === ')' || c === ']' || c === '}') { depth--; continue; }
+      if (c === ',' && depth === 0) {
+        args.push(text.slice(start, i).trim());
+        start = i + 1;
+      }
+    }
+    const tail = text.slice(start).trim();
+    if (tail || args.length) args.push(tail);
+    return args.filter(Boolean);
   }
 
   function executeBlock(lines, from, to, env, out, depth=0){
@@ -905,7 +973,7 @@ a{color:#aabdff}
       if(m){
         const [b,e]=findBlock(lines,i,indent);
         const params=m[2].split(",").map(x=>x.trim()).filter(Boolean);
-        hstRuntime.functions[m[1]]={params,from:b,to:e};
+        hstRuntime.functions[m[1]]={params,lines,from:b,to:e};
         i=e; continue;
       }
 
@@ -918,7 +986,7 @@ a{color:#aabdff}
       m=text.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)$/);
       if(m){
         const fn=m[1], argsText=m[2];
-        const args=argsText.trim()?argsText.split(",").map(x=>evalExpr(x.trim(),env)):[];
+        const args=splitCallArgs(argsText).map(x=>evalExpr(x,env));
         if(fn==="print"){out.push(args.map(String).join(" "));i++;continue;}
         if(fn==="message"){const roomName=String(args[0]??""),content=String(args[1]??"");const room=state.workspace.rooms.find(r=>r.name===roomName);if(!room)throw new Error("Room not found: "+roomName);const mm={id:crypto.randomUUID(),roomId:room.id,authorId:state.identity.id,authorName:state.identity.name,content,createdAt:isoNow()};state.workspace.messages.push(mm);broadcast({kind:"messages",value:mm});out.push(`message sent: #${roomName}`);i++;continue;}
         if(fn==="room"){const name=String(args[0]??"room-"+shortId().toLowerCase());const rr={id:crypto.randomUUID(),name,topic:""};state.workspace.rooms.push(rr);broadcast({kind:"rooms",value:rr});out.push(`room created: ${name}`);i++;continue;}
@@ -950,9 +1018,11 @@ a{color:#aabdff}
   }
 
   function executeHstScript(source) {
+    const previousOutput=hstRuntime.currentOutput;
     try{
       const lines=splitStatements(source);
       const out=[];
+      hstRuntime.currentOutput=out;
       const env=Object.create(hstRuntime.vars);
       executeBlock(lines,0,lines.length,env,out);
       Object.assign(hstRuntime.vars,env);
@@ -961,12 +1031,14 @@ a{color:#aabdff}
     }catch(e){
       if(e?.__return) return {ok:true,output:String(e.value??"")};
       return {ok:false,output:"HstScriptError: "+(e?.message||String(e))};
+    } finally {
+      hstRuntime.currentOutput=previousOutput;
     }
   }
 
   function runHsh(input) {
     const raw=String(input||"").trim();
-    const parts=raw.match(/"[^"]*"|'[^']*'|\\S+/g)||[];
+    const parts=raw.match(/"[^"]*"|'[^']*'|\S+/g)||[];
     const cmd=(parts.shift()||"").toLowerCase();
     const args=parts.map(x=>x.replace(/^["']|["']$/g,""));
     let result;
@@ -1009,7 +1081,7 @@ a{color:#aabdff}
       <div class="grid cols2" style="margin-top:12px">
         <div class="card pad"><h3>Command</h3><div class="small muted">예: room list · task create Fix API · hst print("Hello")</div>
           <div class="composer"><input id="hshInput" placeholder="help"><button class="btn primary" data-action="run-hsh">Run</button></div><hr><h3>History</h3>
-          <div class="list">${hshHistory.length?hshHistory.slice().reverse().map(x=>`<div class="wiki-page"><div class="small muted">$ ${esc(x.input)}</div><div style="white-space:pre-wrap;margin-top:5px">${esc(x.result.message)}</div></div>`).join(""):'<div class="empty">No HSH commands yet</div>'}</div>
+          <div class="list">${hshHistory.length?hshHistory.slice().reverse().map(x=>`<div class="wiki-page"><div class="small muted">${esc(x.input)}</div><div style="white-space:pre-wrap;margin-top:5px">${esc(x.result.message)}</div></div>`).join(""):'<div class="empty">No HSH commands yet</div>'}</div>
         </div>
         <div class="card pad"><h3>HSH + HstScript</h3><div class="small muted">HSH는 Helack 작업 셸이고, HstScript는 Python 계열 문법을 JavaScript 샌드박스에서 실행하는 실제 프로그래밍 언어입니다.</div><hr>
           <pre class="code">room list
