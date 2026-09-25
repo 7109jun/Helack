@@ -1,0 +1,1160 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Helack — Anonymous Work Collaboration</title>
+<style>
+:root{
+  --bg:#0b1020;--panel:#11182a;--panel2:#172036;--line:#29334b;--text:#eef3ff;--muted:#93a0ba;
+  --accent:#7c9cff;--accent2:#5eead4;--danger:#ff6b7a;--shadow:0 10px 30px rgba(0,0,0,.28);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+button,input,textarea,select{font:inherit}
+button{cursor:pointer}
+.app{display:grid;grid-template-columns:240px 1fr;height:100%}
+.sidebar{border-right:1px solid var(--line);background:#0d1425;display:flex;flex-direction:column;min-width:0}
+.brand{padding:18px;border-bottom:1px solid var(--line);font-weight:800;font-size:20px;letter-spacing:.3px}
+.brand small{display:block;color:var(--muted);font-size:11px;font-weight:500;margin-top:3px}
+.nav{padding:12px;overflow:auto}
+.nav-section{margin:14px 8px 6px;color:#73809b;font-size:11px;text-transform:uppercase;letter-spacing:.12em}
+.nav button{display:flex;width:100%;align-items:center;gap:9px;border:0;background:transparent;color:#cbd5ea;padding:9px 10px;border-radius:8px;text-align:left;margin:2px 0}
+.nav button.active,.nav button:hover{background:var(--panel2);color:#fff}
+.sidebar-footer{margin-top:auto;padding:12px;border-top:1px solid var(--line)}
+.identity{font-size:12px;color:var(--muted);word-break:break-all}
+.identity b{display:block;color:var(--text);margin-top:3px}
+.main{min-width:0;display:grid;grid-template-rows:58px 1fr}
+.topbar{border-bottom:1px solid var(--line);background:#0d1425;display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+.title{font-weight:750}
+.top-actions{display:flex;gap:8px;align-items:center}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--text);padding:8px 12px;border-radius:8px}
+.btn:hover{background:var(--panel2)}
+.btn.primary{background:var(--accent);color:#07101e;border-color:transparent;font-weight:700}
+.btn.danger{color:#ffd7dc;border-color:#6d2731}
+.content{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 320px}
+.view{min-width:0;overflow:auto;padding:18px}
+.right{border-left:1px solid var(--line);background:#0d1425;overflow:auto;padding:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.card.pad{padding:16px}
+.grid{display:grid;gap:12px}
+.grid.cols2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid.cols3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:980px){.app{grid-template-columns:76px 1fr}.brand small,.nav-section,.nav button span,.identity b{display:none}.nav button{justify-content:center}.content{grid-template-columns:1fr}.right{display:none}}
+h1,h2,h3{margin:0 0 10px} h2{font-size:22px} h3{font-size:15px}
+.muted{color:var(--muted)} .small{font-size:12px}.kpi{font-size:28px;font-weight:800}
+input,textarea,select{width:100%;background:#0b1221;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;outline:0}
+textarea{min-height:90px;resize:vertical}
+input:focus,textarea:focus,select:focus{border-color:#5871c4}
+.row{display:flex;gap:8px;align-items:center}.row > *{min-width:0}
+.spread{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.tag{display:inline-flex;align-items:center;padding:3px 7px;background:#1a2640;border:1px solid #2c3b5f;border-radius:999px;font-size:11px;color:#bfcbeb}
+.message{padding:11px;border-bottom:1px solid var(--line)}
+.message:last-child{border-bottom:0}.message .meta{display:flex;gap:7px;align-items:center;font-size:12px;margin-bottom:5px}
+.avatar{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:#273a69;font-size:11px;font-weight:800}
+.message .body{white-space:pre-wrap;line-height:1.45}
+.message .actions{display:flex;gap:6px;margin-top:7px}.linkbtn{border:0;background:transparent;color:#aabdff;padding:0;font-size:12px}
+.composer{display:flex;gap:8px;margin-top:12px}.composer input{flex:1}
+.thread{background:#0d1425;border:1px solid var(--line);border-radius:10px;margin-top:8px;padding:10px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.tabs button{border:1px solid var(--line);background:transparent;color:var(--muted);padding:7px 10px;border-radius:8px}.tabs button.active{background:#192646;color:#fff}
+.kanban{display:grid;grid-template-columns:repeat(4,minmax(220px,1fr));gap:10px;overflow:auto;padding-bottom:6px}
+.column{background:#0d1425;border:1px solid var(--line);border-radius:10px;min-height:260px;padding:10px}
+.task{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px;margin:8px 0}
+.task .title{font-weight:700;font-size:13px;margin-bottom:6px}.task .desc{font-size:12px;color:#b8c2d7}
+.wiki-page,.doc-item,.link-item{border:1px solid var(--line);border-radius:9px;padding:11px;background:#0d1425;margin:8px 0}
+pre.code{background:#090e19;border:1px solid var(--line);padding:10px;border-radius:8px;overflow:auto}
+.list{max-height:360px;overflow:auto}.empty{padding:30px;text-align:center;color:var(--muted)}
+.modal{position:fixed;inset:0;background:rgba(3,6,15,.72);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}
+.modal.show{display:flex}.modal-box{max-width:760px;width:100%;max-height:90vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+.notice{padding:10px 12px;border:1px solid #394a72;background:#121c31;border-radius:9px;color:#c8d3ef}
+hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+a{color:#aabdff}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">Helack<small>Anonymous Work Collaboration</small></div>
+    <div class="nav">
+      <div class="nav-section">Workspace</div>
+      <button data-view="overview" class="active">⌂ <span>Overview</span></button>
+      <button data-view="room"># <span>Rooms</span></button>
+      <button data-view="wiki">W <span>Wiki</span></button>
+      <button data-view="docs">▣ <span>Documents</span></button>
+      <button data-view="projects">▤ <span>Projects</span></button>
+      <button data-view="links">↗ <span>Open Links</span></button>
+      <button data-view="hsh">⌘ <span>HSH</span></button>
+      <button data-view="hstscript">▶ <span>HstScript</span></button>
+      <div class="nav-section">Connection</div>
+      <button data-action="webrtc">⇄ <span>WebRTC P2P</span></button>
+      <button data-action="share">⤴ <span>Share Workspace</span></button>
+      <div class="nav-section">File</div>
+      <button data-action="export">↓ <span>Export .hlk</span></button>
+      <button data-action="import">↑ <span>Import .hlk</span></button>
+      <input id="fileInput" type="file" accept=".hlk,application/octet-stream" hidden>
+    </div>
+    <div class="sidebar-footer">
+      <div class="small muted">Anonymous Identity</div>
+      <div class="identity"><b id="identityName">Loading…</b></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="title" id="pageTitle">Overview</div>
+      <div class="top-actions">
+        <span class="tag" id="statusTag">Local Workspace</span>
+        <button class="btn" data-action="new-room">+ Room</button>
+        <button class="btn primary" data-action="export">Export .hlk</button>
+      </div>
+    </header>
+
+    <section class="content">
+      <div class="view" id="view"></div>
+      <aside class="right">
+        <div class="card pad">
+          <h3>Workspace</h3>
+          <div class="small muted" id="workspaceMeta"></div>
+          <hr>
+          <div class="row"><span class="tag" id="peerCount">0 peers</span><span class="tag" id="objectCount">0 objects</span></div>
+          <hr>
+          <div class="small muted">`.hlk` is a binary package. This build stores a structured binary payload; the UI restores the original text/object model when loaded.</div>
+        </div>
+        <div class="card pad" style="margin-top:12px">
+          <h3>Quick Command</h3>
+          <div class="small muted">Examples: /room, /task, /wiki, /link, /hsh</div>
+          <input id="quickCmd" placeholder="/hsh project list">
+        </div>
+      </aside>
+    </section>
+  </main>
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal-box" id="modalBox"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/lzma-wasm@1.0.7/dist/iife/index.js"></script>
+<script>
+(() => {
+  "use strict";
+
+  const APP_MAGIC = [0x48,0x4c,0x4b,0x01]; // HLK + version marker
+  const SCHEMA = 1;
+  const enc = new TextEncoder(), dec = new TextDecoder();
+
+  const state = {
+    view: "overview",
+    workspace: {
+      id: crypto.randomUUID(),
+      name: "Helack Workspace",
+      createdAt: new Date().toISOString(),
+      rooms: [],
+      messages: [],
+      threads: [],
+      comments: [],
+      wiki: [],
+      documents: [],
+      projects: [],
+      links: [],
+      peers: []
+    },
+    identity: {
+      id: "anon-" + crypto.randomUUID(),
+      name: "Anonymous #" + Math.random().toString(36).slice(2,7).toUpperCase()
+    },
+    peer: {
+      pc: null,
+      channel: null
+    }
+  };
+
+  function saveLocal() {
+    try {
+      localStorage.setItem("helack.workspace", JSON.stringify(state.workspace));
+      localStorage.setItem("helack.identity", JSON.stringify(state.identity));
+    } catch {}
+  }
+
+  function loadLocal() {
+    try {
+      const w = JSON.parse(localStorage.getItem("helack.workspace") || "null");
+      const i = JSON.parse(localStorage.getItem("helack.identity") || "null");
+      if (w && typeof w === "object") state.workspace = Object.assign(state.workspace, w);
+      if (i && typeof i === "object") state.identity = Object.assign(state.identity, i);
+    } catch {}
+    if (!state.workspace.rooms.length) {
+      const r = {id: crypto.randomUUID(), name:"general", topic:"General work discussion"};
+      state.workspace.rooms.push(r);
+    }
+  }
+
+  function allObjects() {
+    const w = state.workspace;
+    return ["rooms","messages","threads","comments","wiki","documents","projects","links"]
+      .reduce((n,k)=>n+(Array.isArray(w[k])?w[k].length:0),0);
+  }
+
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function isoNow(){return new Date().toISOString();}
+  function shortId(){return Math.random().toString(36).slice(2,7).toUpperCase();}
+
+  function setView(v) {
+    state.view=v;
+    document.querySelectorAll(".nav button[data-view]").forEach(b=>b.classList.toggle("active", b.dataset.view===v));
+    render();
+  }
+
+  function modal(html) {
+    document.getElementById("modalBox").innerHTML = html;
+    document.getElementById("modal").classList.add("show");
+  }
+  function closeModal(){document.getElementById("modal").classList.remove("show");}
+  document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal();});
+
+  // ---------- HLK binary ----------
+  // HLK v1 binary container
+  // 0..3   magic: HLK\x01
+  // 4..5   schema u16
+  // 6..7   flags u16 (bit 0 = XZ container using LZMA2)
+  // 8..11  uncompressed payload length u32
+  // 12..15 compressed/stored payload length u32
+  // 16..  payload
+  const HLK_FLAG_LZMA2_XZ = 0x0001;
+  const HLK_HEADER_SIZE = 16;
+
+  function getLzma() {
+    return window.lzma_wasm || null;
+  }
+
+  function initLzma() {
+    const z=getLzma();
+    if(!z) return false;
+    try { if(typeof z.initWasmSync==='function') z.initWasmSync(); } catch {}
+    return typeof z.compress==='function' && typeof z.decompress==='function';
+  }
+
+  function encodeWorkspacePayload() {
+    return enc.encode(JSON.stringify({
+      schema: SCHEMA,
+      workspace: state.workspace,
+      identity: state.identity
+    }));
+  }
+
+  function makeHlkBytes() {
+    const raw=encodeWorkspacePayload();
+    const z=getLzma();
+    let payload=raw;
+    let flags=0;
+
+    if(z && initLzma()) {
+      try {
+        // XZ is the standard container; its default LZMA2 filter provides the
+        // requested LZMA2 compression while keeping the package self-describing.
+        payload=z.compress(raw,{format:'xz',level:6});
+        if(!(payload instanceof Uint8Array)) payload=new Uint8Array(payload);
+        flags=HLK_FLAG_LZMA2_XZ;
+      } catch(e) {
+        console.warn('HLK LZMA2/XZ compression unavailable:',e);
+      }
+    }
+
+    const buf=new ArrayBuffer(HLK_HEADER_SIZE+payload.length);
+    const view=new DataView(buf);
+    APP_MAGIC.forEach((b,i)=>view.setUint8(i,b));
+    view.setUint16(4,SCHEMA,true);
+    view.setUint16(6,flags,true);
+    view.setUint32(8,raw.length,true);
+    view.setUint32(12,payload.length,true);
+    new Uint8Array(buf,HLK_HEADER_SIZE).set(payload);
+    return new Uint8Array(buf);
+  }
+
+  function parseHlk(bytes) {
+    if(!(bytes instanceof Uint8Array) || bytes.length<HLK_HEADER_SIZE) throw new Error('Invalid .hlk file');
+    for(let i=0;i<4;i++) if(bytes[i]!==APP_MAGIC[i]) throw new Error('Not a Helack HLK file');
+    const dv=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+    const schema=dv.getUint16(4,true);
+    const flags=dv.getUint16(6,true);
+    const rawLen=dv.getUint32(8,true);
+    const payloadLen=dv.getUint32(12,true);
+    if(schema!==SCHEMA) throw new Error('Unsupported HLK schema: '+schema);
+    if(HLK_HEADER_SIZE+payloadLen>bytes.length) throw new Error('Truncated HLK payload');
+    let payload=bytes.subarray(HLK_HEADER_SIZE,HLK_HEADER_SIZE+payloadLen);
+
+    if(flags & HLK_FLAG_LZMA2_XZ) {
+      const z=getLzma();
+      if(!z || !initLzma()) throw new Error('LZMA2/XZ codec is unavailable. Open the Helack page online once so the browser codec can load.');
+      payload=z.decompress(payload);
+      if(!(payload instanceof Uint8Array)) payload=new Uint8Array(payload);
+    }
+    if(rawLen!==payload.length) throw new Error('HLK payload size mismatch');
+    return JSON.parse(dec.decode(payload));
+  }
+
+  function exportHlk() {
+    const bytes=makeHlkBytes();
+    const compressed=(new DataView(bytes.buffer)).getUint16(6,true)&HLK_FLAG_LZMA2_XZ;
+    const blob=new Blob([bytes],{type:'application/octet-stream'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=(state.workspace.name||'workspace').replace(/[^\w.-]+/g,'_')+'.hlk';
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    if(!compressed) alert('LZMA2/XZ codec가 로드되지 않아 이 .hlk는 압축 없이 저장되었습니다.');
+  }
+
+  async function importHlk(file) {
+    const bytes=new Uint8Array(await file.arrayBuffer());
+    const data=parseHlk(bytes);
+    if(!data.workspace) throw new Error('Workspace missing');
+    state.workspace=data.workspace;
+    if(data.identity) state.identity=data.identity;
+    saveLocal(); render();
+    alert('Helack Workspace loaded.');
+  }
+
+  // ---------- Link sharing ----------
+  async function compressForLink(text) {
+    if (typeof CompressionStream !== "function") return null;
+    try {
+      const cs = new CompressionStream("deflate-raw");
+      const w = cs.writable.getWriter();
+      w.write(enc.encode(text)); w.close();
+      const out = await new Response(cs.readable).arrayBuffer();
+      return btoa(String.fromCharCode(...new Uint8Array(out)));
+    } catch { return null; }
+  }
+  async function decompressFromLink(b64) {
+    const arr=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+    if (typeof DecompressionStream !== "function") throw new Error("DecompressionStream unavailable");
+    const ds=new DecompressionStream("deflate-raw");
+    const w=ds.writable.getWriter(); w.write(arr); w.close();
+    return dec.decode(await new Response(ds.readable).arrayBuffer());
+  }
+
+  async function makeShareLink() {
+    const json = JSON.stringify({schema:SCHEMA,workspace:state.workspace,identity:state.identity});
+    let fragment = await compressForLink(json);
+    let mode="deflate";
+    if (!fragment) { fragment = btoa(unescape(encodeURIComponent(json))); mode="plain"; }
+    const url=location.href.split("#")[0]+"#hlk="+encodeURIComponent(fragment);
+    modal(`<h2>Share Workspace</h2>
+      <div class="notice">이 링크는 URL fragment에 Workspace 데이터를 포함합니다. 작은/중간 크기의 Workspace에 적합합니다.</div>
+      <hr>
+      <label class="small muted">Share URL</label>
+      <textarea id="shareUrl" style="min-height:140px">${esc(url)}</textarea>
+      <div class="row" style="margin-top:8px"><button class="btn primary" onclick="navigator.clipboard?.writeText(document.getElementById('shareUrl').value)">Copy</button><button class="btn" onclick="closeModal()">Close</button></div>
+      <div class="small muted" style="margin-top:10px">Encoding: ${mode}</div>`);
+  }
+
+  async function loadShareFromHash() {
+    const m=location.hash.match(/^#hlk=(.+)$/);
+    if(!m) return;
+    try{
+      const raw=decodeURIComponent(m[1]);
+      let json;
+      try { json=await decompressFromLink(raw); }
+      catch { json=decodeURIComponent(escape(atob(raw))); }
+      const d=JSON.parse(json);
+      if(d.workspace) {
+        state.workspace=d.workspace;
+        if(d.identity) state.identity=d.identity;
+        saveLocal();
+      }
+    }catch(e){console.warn("share link load failed",e);}
+  }
+
+  // ---------- Room sharing ----------
+  async function makeRoomShareLink(roomId) {
+    const room=state.workspace.rooms.find(r=>r.id===roomId);
+    if(!room) return;
+    const messages=state.workspace.messages.filter(m=>m.roomId===roomId);
+    const messageIds=new Set(messages.map(m=>m.id));
+    const threads=state.workspace.threads.filter(t=>messageIds.has(t.messageId));
+    const comments=state.workspace.comments.filter(c=>messageIds.has(c.targetId));
+    const packet={schema:SCHEMA,room, messages, threads, comments};
+    const json=JSON.stringify(packet);
+    let fragment=await compressForLink(json),mode='deflate';
+    if(!fragment){fragment=btoa(unescape(encodeURIComponent(json)));mode='plain';}
+    const url=location.href.split('#')[0]+'#room='+encodeURIComponent(fragment);
+    modal(`<h2>Share Room</h2>
+      <div class="notice">이 링크는 선택한 채팅방과 메시지/Thread/Comment 데이터를 포함합니다. 링크를 연 사용자는 자신의 Workspace에 방을 가져올 수 있습니다.</div>
+      <hr><label class="small muted">Room Share URL</label>
+      <textarea id="roomShareUrl" style="min-height:140px">${esc(url)}</textarea>
+      <div class="row" style="margin-top:8px"><button class="btn primary" onclick="navigator.clipboard?.writeText(document.getElementById('roomShareUrl').value)">Copy</button><button class="btn" onclick="closeModal()">Close</button></div>
+      <div class="small muted" style="margin-top:10px">Encoding: ${mode}</div>`);
+  }
+
+  async function loadRoomShareFromHash() {
+    const m=location.hash.match(/^#room=(.+)$/);
+    if(!m) return;
+    try {
+      const raw=decodeURIComponent(m[1]);
+      let json;
+      try { json=await decompressFromLink(raw); }
+      catch { json=decodeURIComponent(escape(atob(raw))); }
+      const packet=JSON.parse(json);
+      if(!packet.room) return;
+      const existing=state.workspace.rooms.find(r=>r.name===packet.room.name);
+      const room=existing||{id:crypto.randomUUID(),name:packet.room.name,topic:packet.room.topic||''};
+      if(!existing) state.workspace.rooms.push(room);
+      const oldMsgIds=new Set(state.workspace.messages.map(m=>m.id));
+      for(const m0 of (packet.messages||[])) {
+        const m={...m0,roomId:room.id};
+        if(!oldMsgIds.has(m.id)) state.workspace.messages.push(m);
+      }
+      const oldThreadIds=new Set(state.workspace.threads.map(t=>t.id));
+      for(const t of (packet.threads||[])) if(!oldThreadIds.has(t.id)) state.workspace.threads.push(t);
+      const oldCommentIds=new Set(state.workspace.comments.map(c=>c.id));
+      for(const c of (packet.comments||[])) if(!oldCommentIds.has(c.id)) state.workspace.comments.push(c);
+      saveLocal(); activeRoomId=room.id; state.view='room';
+      history.replaceState(null,'',location.href.split('#')[0]);
+    } catch(e) { console.warn('room share load failed',e); }
+  }
+
+  // ---------- WebRTC ----------
+  function showRtc() {
+    modal(`<h2>WebRTC P2P</h2>
+      <div class="small muted">중앙 서버 없이 Offer/Answer를 복사해서 교환하는 간단한 signaling 방식입니다.</div>
+      <hr>
+      <h3>1. Host</h3>
+      <div class="row"><button class="btn primary" id="makeOffer">Create Offer</button></div>
+      <textarea id="rtcOffer" placeholder="Offer SDP"></textarea>
+      <h3>2. Guest</h3>
+      <div class="row"><button class="btn" id="acceptOffer">Accept Offer → Create Answer</button></div>
+      <textarea id="rtcAnswer" placeholder="Answer SDP"></textarea>
+      <h3>3. Host</h3>
+      <button class="btn" id="acceptAnswer">Apply Answer</button>
+      <hr>
+      <div class="small muted" id="rtcStatus">Disconnected</div>
+      <div class="row" style="margin-top:10px"><button class="btn" onclick="closeModal()">Close</button></div>`);
+    document.getElementById("makeOffer").onclick=createOffer;
+    document.getElementById("acceptOffer").onclick=acceptOffer;
+    document.getElementById("acceptAnswer").onclick=applyAnswer;
+  }
+
+  async function waitIce(pc) {
+    if(pc.iceGatheringState==="complete") return;
+    await new Promise(resolve=>{
+      const fn=()=>{if(pc.iceGatheringState==="complete"){pc.removeEventListener("icegatheringstatechange",fn);resolve();}};
+      pc.addEventListener("icegatheringstatechange",fn);
+      setTimeout(resolve,5000);
+    });
+  }
+  function bindChannel(ch) {
+    state.peer.channel=ch;
+    ch.onopen=()=>{
+      document.getElementById("rtcStatus")?.replaceChildren(document.createTextNode("Connected"));
+      state.workspace.peers=[...new Set([...state.workspace.peers,state.identity.id+"↔peer"])];
+      saveLocal(); render();
+      ch.send(JSON.stringify({type:"sync",workspace:state.workspace,identity:state.identity}));
+    };
+    ch.onmessage=e=>{
+      try{
+        const m=JSON.parse(e.data);
+        if(m.type==="sync" && m.workspace){
+          state.workspace=m.workspace; saveLocal(); render();
+        } else if(m.type==="patch" && m.op){
+          applyPatch(m.op); saveLocal(); render();
+        }
+      }catch{}
+    };
+    ch.onclose=()=>{render();};
+  }
+  async function createOffer() {
+    const pc=new RTCPeerConnection({iceServers:[]});
+    state.peer.pc=pc;
+    bindChannel(pc.createDataChannel("helack"));
+    const offer=await pc.createOffer(); await pc.setLocalDescription(offer); await waitIce(pc);
+    document.getElementById("rtcOffer").value=JSON.stringify(pc.localDescription);
+  }
+  async function acceptOffer() {
+    const raw=document.getElementById("rtcOffer").value.trim();
+    if(!raw) return alert("Offer를 입력하세요.");
+    const pc=new RTCPeerConnection({iceServers:[]});
+    state.peer.pc=pc;
+    pc.ondatachannel=e=>bindChannel(e.channel);
+    await pc.setRemoteDescription(JSON.parse(raw));
+    const answer=await pc.createAnswer(); await pc.setLocalDescription(answer); await waitIce(pc);
+    document.getElementById("rtcAnswer").value=JSON.stringify(pc.localDescription);
+  }
+  async function applyAnswer() {
+    const raw=document.getElementById("rtcAnswer").value.trim();
+    if(!raw||!state.peer.pc) return alert("Host에서 먼저 Offer를 생성하세요.");
+    await state.peer.pc.setRemoteDescription(JSON.parse(raw));
+    document.getElementById("rtcStatus").textContent="Connecting…";
+  }
+
+  function broadcast(op) {
+    const c=state.peer.channel;
+    if(c && c.readyState==="open") c.send(JSON.stringify({type:"patch",op}));
+  }
+  function applyPatch(op) {
+    const {kind,value} = op;
+    if(!kind || !state.workspace[kind]) return;
+    state.workspace[kind].push(value);
+  }
+
+  // ---------- Commands ----------
+  function handleCommand(text) {
+    if(!text.startsWith("/")) return false;
+    const p=text.trim().split(/\s+/), cmd=p[0].toLowerCase(), rest=text.trim().slice(p[0].length).trim();
+    if(cmd==="/room"){
+      const name=rest||("room-"+shortId().toLowerCase());
+      const r={id:crypto.randomUUID(),name,topic:""};
+      state.workspace.rooms.push(r); saveLocal(); broadcast({kind:"rooms",value:r}); setView("room"); return true;
+    }
+    if(cmd==="/task"){
+      const pj=state.workspace.projects[0]||createProject(false);
+      const t={id:crypto.randomUUID(),title:rest||"New task",description:"",status:"todo",assignee:"",createdAt:isoNow()};
+      pj.tasks.push(t); saveLocal(); setView("projects"); return true;
+    }
+    if(cmd==="/wiki"){
+      const w={id:crypto.randomUUID(),title:rest||"New page",body:"",updatedAt:isoNow()};
+      state.workspace.wiki.push(w); saveLocal(); broadcast({kind:"wiki",value:w}); setView("wiki"); return true;
+    }
+    if(cmd==="/link"){
+      if(!rest) return false;
+      const l={id:crypto.randomUUID(),url:rest,title:rest,createdAt:isoNow()};
+      state.workspace.links.push(l); saveLocal(); broadcast({kind:"links",value:l}); setView("links"); return true;
+    }
+    if(cmd==="/hsh"){
+      runHsh(rest||"help");
+      return true;
+    }
+    if(cmd==="/hst" || cmd==="/hstscript"){
+      setView("hstscript");
+      return true;
+    }
+    return false;
+  }
+
+  // ---------- Renderers ----------
+  function render() {
+    document.getElementById("identityName").textContent=state.identity.name;
+    document.getElementById("workspaceMeta").textContent=`${state.workspace.name} · ${new Date(state.workspace.createdAt).toLocaleString()}`;
+    document.getElementById("peerCount").textContent=`${state.workspace.peers.length} peers`;
+    document.getElementById("objectCount").textContent=`${allObjects()} objects`;
+    document.getElementById("statusTag").textContent=state.peer.channel?.readyState==="open"?"P2P Connected":"Local Workspace";
+    const titles={overview:"Overview",room:"Rooms",wiki:"Wiki",docs:"Documents",projects:"Projects",links:"Open Links",hsh:"HSH",hstscript:"HstScript"};
+    document.getElementById("pageTitle").textContent=titles[state.view]||"Helack";
+    const root=document.getElementById("view");
+    if(state.view==="overview") root.innerHTML=overviewView();
+    if(state.view==="room") root.innerHTML=roomView();
+    if(state.view==="wiki") root.innerHTML=wikiView();
+    if(state.view==="docs") root.innerHTML=docsView();
+    if(state.view==="projects") root.innerHTML=projectsView();
+    if(state.view==="links") root.innerHTML=linksView();
+    if(state.view==="hsh") root.innerHTML=hshView();
+    if(state.view==="hstscript") root.innerHTML=hstScriptView();
+  }
+
+  function overviewView(){
+    const w=state.workspace;
+    return `<div class="spread"><div><h2>${esc(w.name)}</h2><div class="muted">익명 · 서버리스 · WebRTC 기반 업무 Workspace</div></div><button class="btn" data-action="rename-workspace">Rename</button></div>
+      <div class="grid cols3" style="margin-top:14px">
+        <div class="card pad"><div class="small muted">Rooms</div><div class="kpi">${w.rooms.length}</div></div>
+        <div class="card pad"><div class="small muted">Messages</div><div class="kpi">${w.messages.length}</div></div>
+        <div class="card pad"><div class="small muted">Projects</div><div class="kpi">${w.projects.length}</div></div>
+      </div>
+      <div class="grid cols2" style="margin-top:12px">
+        <div class="card pad"><h3>Core Objects</h3><div class="small muted">Room · Command · Thread · Comment · Wiki · Documents · Kanban · Open Link</div><hr><div class="small">`.hlk`로 Workspace를 바이너리 내보내고 다시 불러올 수 있습니다.</div></div>
+        <div class="card pad"><h3>Quick Start</h3><div class="small muted">왼쪽 메뉴에서 Room / Wiki / Documents / Projects / Open Links를 선택하세요.</div><hr><button class="btn primary" data-action="new-room">Create Room</button></div>
+      </div>`;
+  }
+
+  let activeRoomId=null;
+  function ensureRoom(){ if(!activeRoomId && state.workspace.rooms[0]) activeRoomId=state.workspace.rooms[0].id; }
+
+  function roomView(){
+    ensureRoom();
+    const rooms=state.workspace.rooms;
+    const room=rooms.find(r=>r.id===activeRoomId)||rooms[0];
+    if(room) activeRoomId=room.id;
+    const msgs=state.workspace.messages.filter(m=>m.roomId===room?.id);
+    return `<div class="spread"><div><h2>Rooms</h2><div class="muted">업무별 대화 · Threads · Commands</div></div><button class="btn" data-action="new-room">+ Room</button></div>
+      <div class="grid" style="grid-template-columns:180px minmax(0,1fr);margin-top:12px;min-height:580px">
+        <div class="card pad"><h3>Rooms</h3><div>${rooms.map(r=>`<button class="navbtn ${r.id===room?.id?'active':''}" style="width:100%;margin:3px 0;text-align:left;background:${r.id===room?.id?'#192646':'transparent'};border:0;color:#fff;padding:8px;border-radius:7px;cursor:pointer" data-room="${r.id}"># ${esc(r.name)}</button>`).join("")}</div></div>
+        <div class="card" style="padding:0;overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:14px;border-bottom:1px solid var(--line)"><div class="spread"><div><h3># ${esc(room?.name||"No room")}</h3><div class="small muted">${esc(room?.topic||"")}</div></div><div class="row"><span class="tag">${msgs.length} messages</span>${room?'<button class="btn" data-share-room="'+room.id+'">Share Room</button>':''}</div></div></div>
+          <div class="list" style="flex:1">${msgs.length?msgs.map(messageHtml).join(""):'<div class="empty">아직 메시지가 없습니다.</div>'}</div>
+          <div style="padding:12px;border-top:1px solid var(--line)">
+            <div class="composer"><input id="messageInput" placeholder="메시지 또는 /command…"><button class="btn primary" data-action="send-message">Send</button></div>
+            <div class="small muted" style="margin-top:6px">/room 이름 · /task 작업 · /wiki 제목 · /link URL</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function messageHtml(m){
+    const threads=state.workspace.threads.filter(t=>t.messageId===m.id);
+    return `<div class="message">
+      <div class="meta"><div class="avatar">${esc(m.authorName.slice(-2))}</div><b>${esc(m.authorName)}</b><span class="muted">${new Date(m.createdAt).toLocaleString()}</span></div>
+      <div class="body">${esc(m.content)}</div>
+      <div class="actions"><button class="linkbtn" data-thread="${m.id}">Thread (${threads.length})</button><button class="linkbtn" data-comment="${m.id}">Comment</button></div>
+      ${threads.map(t=>`<div class="thread"><b>${esc(t.authorName)}</b> <span class="muted">thread</span><div>${esc(t.content)}</div></div>`).join("")}
+    </div>`;
+  }
+
+  function wikiView(){
+    return `<div class="spread"><div><h2>Wiki</h2><div class="muted">Workspace knowledge base</div></div><button class="btn primary" data-action="new-wiki">+ Page</button></div>
+      <div class="grid cols2" style="margin-top:12px">
+        <div class="card pad"><h3>Pages</h3>${state.workspace.wiki.length?state.workspace.wiki.map(w=>`<div class="wiki-page"><div class="spread"><b>${esc(w.title)}</b><button class="linkbtn" data-open-wiki="${w.id}">Open</button></div><div class="small muted">${new Date(w.updatedAt).toLocaleString()}</div></div>`).join(""):'<div class="empty">No wiki pages</div>'}</div>
+        <div class="card pad"><h3>Workspace Links</h3><div class="small muted">Wiki는 문서와 프로젝트에 연결해 사용할 수 있습니다.</div></div>
+      </div>`;
+  }
+
+  function docsView(){
+    return `<div class="spread"><div><h2>Documents</h2><div class="muted">문서 보관함</div></div><button class="btn primary" data-action="new-doc">+ Document</button></div>
+      <div class="card pad" style="margin-top:12px">${state.workspace.documents.length?state.workspace.documents.map(d=>`<div class="doc-item"><div class="spread"><div><b>${esc(d.title)}</b><div class="small muted">${esc(d.type||"text")}</div></div><button class="linkbtn" data-open-doc="${d.id}">Open</button></div></div>`).join(""):'<div class="empty">No documents</div>'}</div>`;
+  }
+
+  function createProject(renderNow=true){
+    const p={id:crypto.randomUUID(),name:"Project "+shortId(),tasks:[],createdAt:isoNow()};
+    state.workspace.projects.push(p); saveLocal(); broadcast({kind:"projects",value:p}); if(renderNow) render(); return p;
+  }
+  function projectsView(){
+    let p=state.workspace.projects[0];
+    if(!p) p=createProject(false);
+    const cols=[["backlog","Backlog"],["todo","Todo"],["progress","In Progress"],["done","Done"]];
+    return `<div class="spread"><div><h2>Projects</h2><div class="muted">Kanban project management</div></div><div class="row"><button class="btn" data-action="new-project">+ Project</button><button class="btn primary" data-action="new-task">+ Task</button></div></div>
+      <div class="card pad" style="margin-top:12px"><div class="spread"><h3>${esc(p.name)}</h3><span class="tag">${p.tasks.length} tasks</span></div>
+      <div class="kanban" style="margin-top:10px">${cols.map(([key,label])=>`<div class="column" data-drop="${key}"><div class="spread"><b>${label}</b><span class="small muted">${p.tasks.filter(t=>t.status===key).length}</span></div>${p.tasks.filter(t=>t.status===key).map(t=>`<div class="task"><div class="spread"><div class="title">${esc(t.title)}</div><span class="tag">${esc(t.assignee||"unassigned")}</span></div><div class="desc">${esc(t.description||"")}</div><div class="actions" style="margin-top:7px;display:flex;gap:5px;flex-wrap:wrap">${cols.filter(c=>c[0]!==t.status).map(c=>`<button class="linkbtn" data-move-task="${t.id}" data-status="${c[0]}">→ ${c[1]}</button>`).join("")}<button class="linkbtn" data-comment-task="${t.id}">Comment</button></div></div>`).join("")}</div>`).join("")}</div></div>`;
+  }
+
+  function linksView(){
+    return `<div class="spread"><div><h2>Open Links</h2><div class="muted">외부 URL을 업무 객체로 관리</div></div><button class="btn primary" data-action="new-link">+ Link</button></div>
+      <div class="card pad" style="margin-top:12px">${state.workspace.links.length?state.workspace.links.map(l=>`<div class="link-item"><div class="spread"><div><b>${esc(l.title||l.url)}</b><div class="small muted">${esc(l.url)}</div></div><a href="${esc(l.url)}" target="_blank" rel="noopener">Open ↗</a></div></div>`).join(""):'<div class="empty">No links</div>'}</div>`;
+  }
+
+  // ---------- Dialogs / mutations ----------
+  function newRoom(){
+    modal(`<h2>Create Room</h2><input id="roomName" placeholder="backend"><input id="roomTopic" style="margin-top:8px" placeholder="Topic"><div class="row" style="margin-top:10px"><button class="btn primary" id="saveRoom">Create</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+    document.getElementById("saveRoom").onclick=()=>{
+      const r={id:crypto.randomUUID(),name:document.getElementById("roomName").value.trim()||"general",topic:document.getElementById("roomTopic").value.trim()};
+      state.workspace.rooms.push(r); activeRoomId=r.id; saveLocal(); broadcast({kind:"rooms",value:r}); closeModal(); setView("room");
+    };
+  }
+  function sendMessage(){
+    const el=document.getElementById("messageInput"); if(!el) return;
+    const text=el.value.trim(); if(!text) return;
+    if(handleCommand(text)){el.value="";render();return}
+    ensureRoom();
+    const m={id:crypto.randomUUID(),roomId:activeRoomId,authorId:state.identity.id,authorName:state.identity.name,content:text,createdAt:isoNow()};
+    state.workspace.messages.push(m); saveLocal(); broadcast({kind:"messages",value:m}); el.value=""; render();
+  }
+  function newWiki(){
+    modal(`<h2>New Wiki Page</h2><input id="wTitle" placeholder="Deployment"><textarea id="wBody" style="margin-top:8px" placeholder="Write wiki content…"></textarea><div class="row" style="margin-top:10px"><button class="btn primary" id="saveWiki">Create</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+    document.getElementById("saveWiki").onclick=()=>{
+      const w={id:crypto.randomUUID(),title:document.getElementById("wTitle").value.trim()||"Untitled",body:document.getElementById("wBody").value,updatedAt:isoNow()};
+      state.workspace.wiki.push(w); saveLocal(); broadcast({kind:"wiki",value:w}); closeModal(); setView("wiki");
+    };
+  }
+  function openWiki(id){
+    const w=state.workspace.wiki.find(x=>x.id===id); if(!w) return;
+    modal(`<h2>${esc(w.title)}</h2><div class="small muted">Wiki Page</div><hr><div style="white-space:pre-wrap;line-height:1.5">${esc(w.body||"")}</div><hr><button class="btn" onclick="closeModal()">Close</button>`);
+  }
+  function newDoc(){
+    modal(`<h2>New Document</h2><input id="dTitle" placeholder="Meeting Notes"><select id="dType" style="margin-top:8px"><option value="text">Text</option><option value="markdown">Markdown</option><option value="spec">Specification</option></select><textarea id="dBody" style="margin-top:8px" placeholder="Document contents…"></textarea><div class="row" style="margin-top:10px"><button class="btn primary" id="saveDoc">Create</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+    document.getElementById("saveDoc").onclick=()=>{
+      const d={id:crypto.randomUUID(),title:document.getElementById("dTitle").value.trim()||"Untitled",type:document.getElementById("dType").value,body:document.getElementById("dBody").value,createdAt:isoNow()};
+      state.workspace.documents.push(d); saveLocal(); broadcast({kind:"documents",value:d}); closeModal(); setView("docs");
+    };
+  }
+  function openDoc(id){
+    const d=state.workspace.documents.find(x=>x.id===id); if(!d) return;
+    modal(`<h2>${esc(d.title)}</h2><div class="small muted">${esc(d.type)}</div><hr><pre class="code">${esc(d.body||"")}</pre><button class="btn" onclick="closeModal()">Close</button>`);
+  }
+  function newProject(){ createProject(true); setView("projects"); }
+  function newTask(){
+    const p=state.workspace.projects[0]||createProject(false);
+    modal(`<h2>New Task</h2><input id="tTitle" placeholder="Implement API"><input id="tAssignee" style="margin-top:8px" placeholder="Anonymous ID / name"><textarea id="tDesc" style="margin-top:8px" placeholder="Description"></textarea><div class="row" style="margin-top:10px"><button class="btn primary" id="saveTask">Create</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+    document.getElementById("saveTask").onclick=()=>{
+      const t={id:crypto.randomUUID(),title:document.getElementById("tTitle").value.trim()||"Untitled task",description:document.getElementById("tDesc").value,assignee:document.getElementById("tAssignee").value.trim(),status:"todo",createdAt:isoNow()};
+      p.tasks.push(t); saveLocal(); closeModal(); setView("projects");
+    };
+  }
+  function moveTask(id,status){
+    for(const p of state.workspace.projects){const t=p.tasks.find(x=>x.id===id);if(t){t.status=status;saveLocal();render();broadcast({kind:"projects",value:p});return;}}
+  }
+  function newLink(){
+    modal(`<h2>Open Link</h2><input id="lUrl" placeholder="https://example.com"><input id="lTitle" style="margin-top:8px" placeholder="Title"><div class="row" style="margin-top:10px"><button class="btn primary" id="saveLink">Add</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+    document.getElementById("saveLink").onclick=()=>{
+      const url=document.getElementById("lUrl").value.trim(); if(!/^https?:\/\//i.test(url)) return alert("http:// 또는 https:// URL을 입력하세요.");
+      const l={id:crypto.randomUUID(),url,title:document.getElementById("lTitle").value.trim()||url,createdAt:isoNow()};
+      state.workspace.links.push(l); saveLocal(); broadcast({kind:"links",value:l}); closeModal(); setView("links");
+    };
+  }
+  function addThread(messageId){
+    modal(`<h2>Thread Reply</h2><textarea id="threadText" placeholder="Reply…"></textarea><div class="row" style="margin-top:10px"><button class="btn primary" id="saveThread">Reply</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+    document.getElementById("saveThread").onclick=()=>{
+      const content=document.getElementById("threadText").value.trim(); if(!content)return;
+      const t={id:crypto.randomUUID(),messageId,authorId:state.identity.id,authorName:state.identity.name,content,createdAt:isoNow()};
+      state.workspace.threads.push(t);saveLocal();closeModal();render();
+    };
+  }
+  function addComment(messageId){
+    modal(`<h2>Comment</h2><textarea id="commentText" placeholder="Comment…"></textarea><div class="row" style="margin-top:10px"><button class="btn primary" id="saveComment">Add</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+    document.getElementById("saveComment").onclick=()=>{
+      const content=document.getElementById("commentText").value.trim();if(!content)return;
+      const c={id:crypto.randomUUID(),targetId:messageId,targetType:"message",authorId:state.identity.id,authorName:state.identity.name,content,createdAt:isoNow()};
+      state.workspace.comments.push(c);saveLocal();closeModal();render();
+    };
+  }
+  function commentTask(taskId){ addComment(taskId); }
+
+  function renameWorkspace(){
+    modal(`<h2>Rename Workspace</h2><input id="wName" value="${esc(state.workspace.name)}"><div class="row" style="margin-top:10px"><button class="btn primary" id="saveName">Save</button><button class="btn" onclick="closeModal()">Cancel</button></div>`);
+    document.getElementById("saveName").onclick=()=>{state.workspace.name=document.getElementById("wName").value.trim()||"Helack Workspace";saveLocal();closeModal();render()};
+  }
+
+  // ---------- HSH / HstScript ----------
+  // HstScript is a Python-like language executed by a restricted JavaScript runtime.
+  // It intentionally does not expose eval(), Function(), arbitrary DOM access,
+  // filesystem, OS process execution, or arbitrary network APIs.
+  const hshHistory = [];
+  const hstRuntime = { vars:Object.create(null), functions:Object.create(null) };
+
+  function hshResult(ok, message, data) {
+    return {ok, message, data: data ?? null, time: isoNow()};
+  }
+
+  function tokenizeExpr(src) {
+    const tokens=[];
+    let i=0;
+    while(i<src.length){
+      const c=src[i];
+      if(/\s/.test(c)){i++;continue;}
+      if(c==='"' || c==="'"){
+        const q=c; let j=i+1, str="";
+        while(j<src.length){
+          if(src[j]==="\\"){const n=src[++j]; str+= n==="n"?"\n":n==="t"?"\t":n??""; j++; continue;}
+          if(src[j]===q) break;
+          str+=src[j++];
+        }
+        tokens.push({t:"str",v:str}); i=j+1; continue;
+      }
+      if(/[0-9]/.test(c)){
+        let j=i; while(j<src.length && /[0-9.]/.test(src[j])) j++;
+        const n=Number(src.slice(i,j));
+        tokens.push({t:"num",v:n}); i=j; continue;
+      }
+      if(/[A-Za-z_]/.test(c)){
+        let j=i; while(j<src.length && /[A-Za-z0-9_]/.test(src[j])) j++;
+        tokens.push({t:"id",v:src.slice(i,j)}); i=j; continue;
+      }
+      const two=src.slice(i,i+2);
+      if(["==","!=","<=",">=","&&","||","**"].includes(two)){tokens.push({t:"op",v:two});i+=2;continue;}
+      if("+-*/%()[]<>,!.".includes(c)){tokens.push({t:"op",v:c});i++;continue;}
+      throw new Error("Unexpected character: "+c);
+    }
+    return tokens;
+  }
+
+  function evalExpr(src, env) {
+    const t=tokenizeExpr(src); let i=0;
+    const peek=()=>t[i];
+    const eat=(v)=>{if(!peek() || (v && peek().v!==v))throw new Error("Expected "+v);return t[i++];};
+
+    function primary(){
+      const x=peek();
+      if(!x) throw new Error("Expected expression");
+      if(x.t==="num" || x.t==="str"){i++;return x.v;}
+      if(x.t==="id"){
+        i++; let v;
+        if(x.v==="True" || x.v==="true") v=true;
+        else if(x.v==="False" || x.v==="false") v=false;
+        else if(x.v==="None" || x.v==="null") v=null;
+        else if(x.v==="len" && peek()?.v==="("){
+          eat("("); const a=expression(); eat(")"); v=a?.length ?? 0;
+        } else if(x.v==="str" && peek()?.v==="("){
+          eat("("); const a=expression(); eat(")"); v=String(a);
+        } else if(x.v==="int" && peek()?.v==="("){
+          eat("("); const a=expression(); eat(")"); v=parseInt(a,10);
+        } else if(x.v==="float" && peek()?.v==="("){
+          eat("("); const a=expression(); eat(")"); v=parseFloat(a);
+        } else if(x.v==="type" && peek()?.v==="("){
+          eat("("); const a=expression(); eat(")"); v=Array.isArray(a)?"list":a===null?"None":typeof a;
+        } else if(x.v==="min" && peek()?.v==="("){
+          eat("("); const a=expression(); eat(")"); v=Math.min(...a);
+        } else if(x.v==="max" && peek()?.v==="("){
+          eat("("); const a=expression(); eat(")"); v=Math.max(...a);
+        } else if(x.v==="sum" && peek()?.v==="("){
+          eat("("); const a=expression(); eat(")"); v=a.reduce((n,z)=>n+Number(z),0);
+        } else if(x.v==="range" && peek()?.v==="("){
+          eat("(");
+          const args=[];
+          while(peek() && peek().v!==")"){ args.push(expression()); if(peek()?.v===",") eat(","); else break; }
+          eat(")");
+          let start=0,end=0,step=1;
+          if(args.length===1){end=Number(args[0]);}
+          else if(args.length===2){start=Number(args[0]);end=Number(args[1]);}
+          else {start=Number(args[0]);end=Number(args[1]);step=Number(args[2]);}
+          const arr=[];
+          if(step===0) throw new Error("range() step cannot be zero");
+          if(step>0){for(let n=start;n<end;n+=step)arr.push(n);}
+          else {for(let n=start;n>end;n+=step)arr.push(n);}
+          v=arr;
+        } else {
+          v = Object.prototype.hasOwnProperty.call(env,x.v) ? env[x.v] : undefined;
+          if(v===undefined) throw new Error("Undefined variable: "+x.v);
+        }
+        while(peek()?.v==="."){
+          eat(".");
+          const prop=eat().v;
+          v=v?.[prop];
+        }
+        while(peek()?.v==="["){
+          eat("["); const idx=expression(); eat("]"); v=v?.[idx];
+        }
+        return v;
+      }
+      if(x.v==="("){eat("(");const v=expression();eat(")");return v;}
+      if(x.v==="["){
+        eat("[");const a=[];while(peek()&&peek().v!=="]"){a.push(expression());if(peek()?.v===",")eat(",");else break;}eat("]");return a;
+      }
+      throw new Error("Invalid expression");
+    }
+    function unary(){
+      if(peek()?.v==="!" || peek()?.v==="not"){eat();return !unary();}
+      if(peek()?.v==="-"){eat("-");return -Number(unary());}
+      if(peek()?.v==="+"){eat("+");return Number(unary());}
+      return primary();
+    }
+    function power(){let v=unary();while(peek()?.v==="**"){eat("**");v=v**unary();}return v;}
+    function mul(){let v=power();while(["*","/","%"].includes(peek()?.v)){const op=eat().v;const r=power();v=op==="*" ? v*r : op==="/" ? v/r : v%r;}return v;}
+    function add(){let v=mul();while(["+","-"].includes(peek()?.v)){const op=eat().v;const r=mul();v=op==="+" ? v+r : v-r;}return v;}
+    function cmp(){let v=add();while(["==","!=","<","<=",">",">="].includes(peek()?.v)){const op=eat().v,r=add();v=op==="=="?v===r:op==="!="?v!==r:op==="<"?v<r:op==="<="?v<=r:op===">"?v>r:v>=r;}return v;}
+    function and(){let v=cmp();while(peek()?.v==="&&" || peek()?.v==="and"){eat();v=Boolean(v)&&Boolean(cmp());}return v;}
+    function expression(){let v=and();while(peek()?.v==="||" || peek()?.v==="or"){eat();v=Boolean(v)||Boolean(and());}return v;}
+    const v=expression();
+    if(i<t.length) throw new Error("Unexpected token: "+t[i].v);
+    return v;
+  }
+
+  function splitStatements(source){
+    const raw=String(source||"").replace(/\r/g,"").split("\n");
+    const out=[];
+    for(let n=0;n<raw.length;n++){
+      const original=raw[n];
+      if(!original.trim() || original.trim().startsWith("#")) continue;
+      const indent=(original.match(/^\s*/)||[""])[0].replace(/\t/g,"    ").length;
+      out.push({line:n+1,indent,text:original.trim()});
+    }
+    return out;
+  }
+
+  function findBlock(lines, index, indent){
+    let end=index+1;
+    while(end<lines.length && lines[end].indent>indent) end++;
+    if(end===index+1) throw new Error("Expected indented block at line "+lines[index].line);
+    return [index+1,end];
+  }
+
+  function executeBlock(lines, from, to, env, out, depth=0){
+    if(depth>100) throw new Error("Maximum execution depth exceeded");
+    let i=from;
+    while(i<to){
+      const {text,indent,line}=lines[i];
+
+      let m=text.match(/^if\s+(.+):$/);
+      if(m){
+        const [b,e]=findBlock(lines,i,indent);
+        let next=e, executed=false;
+        if(Boolean(evalExpr(m[1],env))){executeBlock(lines,b,e,env,out,depth+1);executed=true;}
+        while(next<to && lines[next].indent===indent && /^elif\s+.+:$/.test(lines[next].text)){
+          const em=lines[next].text.match(/^elif\s+(.+):$/);
+          const [eb,ee]=findBlock(lines,next,indent);
+          if(!executed && Boolean(evalExpr(em[1],env))){executeBlock(lines,eb,ee,env,out,depth+1);executed=true;}
+          next=ee;
+        }
+        if(next<to && lines[next].indent===indent && lines[next].text==="else:"){
+          const [eb,ee]=findBlock(lines,next,indent);
+          if(!executed) executeBlock(lines,eb,ee,env,out,depth+1);
+          next=ee;
+        }
+        i=next; continue;
+      }
+
+      m=text.match(/^while\s+(.+):$/);
+      if(m){
+        const [b,e]=findBlock(lines,i,indent);
+        let guard=0;
+        while(Boolean(evalExpr(m[1],env))){
+          if(++guard>10000) throw new Error("while loop exceeded 10000 iterations (line "+line+")");
+          try{executeBlock(lines,b,e,env,out,depth+1);}catch(x){if(x && x.__break) break;if(x && x.__continue) continue;throw x;}
+        }
+        i=e; continue;
+      }
+
+      m=text.match(/^for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+(.+):$/);
+      if(m){
+        const [b,e]=findBlock(lines,i,indent);
+        const iterable=evalExpr(m[2],env);
+        if(iterable==null || typeof iterable[Symbol.iterator]!=="function") throw new Error("Object is not iterable at line "+line);
+        for(const value of iterable){env[m[1]]=value;try{executeBlock(lines,b,e,env,out,depth+1);}catch(x){if(x?.__break)break;if(x?.__continue)continue;throw x;}}
+        i=e; continue;
+      }
+
+      m=text.match(/^def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\):$/);
+      if(m){
+        const [b,e]=findBlock(lines,i,indent);
+        const params=m[2].split(",").map(x=>x.trim()).filter(Boolean);
+        hstRuntime.functions[m[1]]={params,from:b,to:e};
+        i=e; continue;
+      }
+
+      if(text==="break"){throw Object.assign(new Error("break"),{__break:true});}
+      if(text==="continue"){throw Object.assign(new Error("continue"),{__continue:true});}
+      if(text.startsWith("return ")){throw {__return:true,value:evalExpr(text.slice(7).trim(),env)};}
+      if(text==="return"){throw {__return:true,value:null};}
+
+      // function call: print(...), hsh(...)
+      m=text.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)$/);
+      if(m){
+        const fn=m[1], argsText=m[2];
+        const args=argsText.trim()?argsText.split(",").map(x=>evalExpr(x.trim(),env)):[];
+        if(fn==="print"){out.push(args.map(String).join(" "));i++;continue;}
+        if(fn==="message"){const roomName=String(args[0]??""),content=String(args[1]??"");const room=state.workspace.rooms.find(r=>r.name===roomName);if(!room)throw new Error("Room not found: "+roomName);const mm={id:crypto.randomUUID(),roomId:room.id,authorId:state.identity.id,authorName:state.identity.name,content,createdAt:isoNow()};state.workspace.messages.push(mm);broadcast({kind:"messages",value:mm});out.push(`message sent: #${roomName}`);i++;continue;}
+        if(fn==="room"){const name=String(args[0]??"room-"+shortId().toLowerCase());const rr={id:crypto.randomUUID(),name,topic:""};state.workspace.rooms.push(rr);broadcast({kind:"rooms",value:rr});out.push(`room created: ${name}`);i++;continue;}
+        if(fn==="task"){const p=state.workspace.projects[0]||createProject(false);const title=String(args[0]??"Untitled task");const tt={id:crypto.randomUUID(),title,description:"",status:"todo",assignee:"",createdAt:isoNow()};p.tasks.push(tt);broadcast({kind:"projects",value:p});out.push(`task created: ${title}`);i++;continue;}
+        if(fn==="wiki"){const title=String(args[0]??"Untitled");const ww={id:crypto.randomUUID(),title,body:"",updatedAt:isoNow()};state.workspace.wiki.push(ww);out.push(`wiki created: ${title}`);i++;continue;}
+        if(fn==="link"){const url=String(args[0]??"");if(!/^https?:\/\//i.test(url))throw new Error("Invalid URL");state.workspace.links.push({id:crypto.randomUUID(),url,title:url,createdAt:isoNow()});out.push(`link added: ${url}`);i++;continue;}
+        if(hstRuntime.functions[fn]){
+          const f=hstRuntime.functions[fn], local=Object.create(env);
+          f.params.forEach((pname,idx)=>local[pname]=args[idx]);
+          try{executeBlock(lines,f.from,f.to,local,out,depth+1);}catch(x){if(x?.__return){out.push(x.value);}}
+          i++;continue;
+        }
+        throw new Error("Unknown function: "+fn);
+      }
+
+      m=text.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*([+\-*/]?=)\s*(.+)$/);
+      if(m){
+        const name=m[1],op=m[2],rhs=evalExpr(m[3],env);
+        if(op==="=")env[name]=rhs;
+        else if(op==="+=")env[name]=(env[name]??0)+rhs;
+        else if(op==="-=")env[name]=(env[name]??0)-rhs;
+        else if(op==="*=")env[name]=(env[name]??0)*rhs;
+        else if(op==="/=")env[name]=(env[name]??0)/rhs;
+        i++;continue;
+      }
+
+      throw new Error("Unknown statement at line "+line+": "+text);
+    }
+  }
+
+  function executeHstScript(source) {
+    try{
+      const lines=splitStatements(source);
+      const out=[];
+      const env=Object.create(hstRuntime.vars);
+      executeBlock(lines,0,lines.length,env,out);
+      Object.assign(hstRuntime.vars,env);
+      saveLocal();
+      return {ok:true,output:out.map(x=>String(x)).join("\n")||"(no output)"};
+    }catch(e){
+      if(e?.__return) return {ok:true,output:String(e.value??"")};
+      return {ok:false,output:"HstScriptError: "+(e?.message||String(e))};
+    }
+  }
+
+  function runHsh(input) {
+    const raw=String(input||"").trim();
+    const parts=raw.match(/"[^"]*"|'[^']*'|\\S+/g)||[];
+    const cmd=(parts.shift()||"").toLowerCase();
+    const args=parts.map(x=>x.replace(/^["']|["']$/g,""));
+    let result;
+
+    if(!cmd || cmd==="help") {
+      result=hshResult(true,
+        "HSH: help, clear, room list, room create <name>, message <room> <text>, task create <title>, wiki create <title>, link add <url>, project list, export, identity, hst <code>",
+        {commands:["help","clear","room list","room create <name>","message <room> <text>","task create <title>","wiki create <title>","link add <url>","project list","export","identity","hst <code>"]});
+    } else if(cmd==="clear") {
+      hshHistory.length=0; render(); return;
+    } else if(cmd==="identity") {
+      result=hshResult(true,state.identity.name,state.identity);
+    } else if(cmd==="room" && args[0]==="list") {
+      result=hshResult(true,state.workspace.rooms.map(r=>"# "+r.name).join("\n")||"(no rooms)",state.workspace.rooms);
+    } else if(cmd==="room" && args[0]==="create") {
+      const name=args.slice(1).join(" ")||("room-"+shortId().toLowerCase());
+      const r={id:crypto.randomUUID(),name,topic:""};state.workspace.rooms.push(r);saveLocal();broadcast({kind:"rooms",value:r});activeRoomId=r.id;state.view="room";result=hshResult(true,`Created room #${name}`,r);
+    } else if(cmd==="message") {
+      const roomName=args.shift(),content=args.join(" "),room=state.workspace.rooms.find(r=>r.name===roomName);
+      if(!room)result=hshResult(false,`Room not found: ${roomName}`);
+      else if(!content)result=hshResult(false,"message requires text");
+      else{const m={id:crypto.randomUUID(),roomId:room.id,authorId:state.identity.id,authorName:state.identity.name,content,createdAt:isoNow()};state.workspace.messages.push(m);saveLocal();broadcast({kind:"messages",value:m});activeRoomId=room.id;state.view="room";result=hshResult(true,`Message sent to #${roomName}`,m);}
+    } else if(cmd==="task"&&args[0]==="create"){
+      const p=state.workspace.projects[0]||createProject(false),title=args.slice(1).join(" ")||"Untitled task",t={id:crypto.randomUUID(),title,description:"",status:"todo",assignee:"",createdAt:isoNow()};p.tasks.push(t);saveLocal();broadcast({kind:"projects",value:p});state.view="projects";result=hshResult(true,`Task created: ${title}`,t);
+    } else if(cmd==="wiki"&&args[0]==="create"){
+      const title=args.slice(1).join(" ")||"Untitled",w={id:crypto.randomUUID(),title,body:"",updatedAt:isoNow()};state.workspace.wiki.push(w);saveLocal();broadcast({kind:"wiki",value:w});state.view="wiki";result=hshResult(true,`Wiki page created: ${title}`,w);
+    } else if(cmd==="link"&&args[0]==="add"){
+      const url=args[1]||"";if(!/^https?:\/\//i.test(url))result=hshResult(false,"link add requires http:// or https:// URL");else{const l={id:crypto.randomUUID(),url,title:url,createdAt:isoNow()};state.workspace.links.push(l);saveLocal();broadcast({kind:"links",value:l});state.view="links";result=hshResult(true,`Link added: ${url}`,l);}
+    } else if(cmd==="project"&&args[0]==="list"){
+      result=hshResult(true,state.workspace.projects.map(p=>`${p.name} (${p.tasks.length} tasks)`).join("\n")||"(no projects)",state.workspace.projects);
+    } else if(cmd==="export"){exportHlk();result=hshResult(true,"Export started");}
+    else if(cmd==="hst"||cmd==="hstscript"){const r=executeHstScript(args.join(" "));window.__hstLastOutput=r.output;state.view="hstscript";result=hshResult(r.ok,r.output);}
+    else result=hshResult(false,`Unknown HSH command: ${raw}. Try "help".`);
+
+    hshHistory.push({input:raw,result});if(hshHistory.length>50)hshHistory.shift();saveLocal();render();
+  }
+
+  function hshView() {
+    return `<div class="spread"><div><h2>HSH</h2><div class="muted">Helack Shell — 다른 곳에서 하던 Workspace 작업을 채팅 안에서 실행</div></div><span class="tag">Embedded</span></div>
+      <div class="grid cols2" style="margin-top:12px">
+        <div class="card pad"><h3>Command</h3><div class="small muted">예: room list · task create Fix API · hst print("Hello")</div>
+          <div class="composer"><input id="hshInput" placeholder="help"><button class="btn primary" data-action="run-hsh">Run</button></div><hr><h3>History</h3>
+          <div class="list">${hshHistory.length?hshHistory.slice().reverse().map(x=>`<div class="wiki-page"><div class="small muted">$ ${esc(x.input)}</div><div style="white-space:pre-wrap;margin-top:5px">${esc(x.result.message)}</div></div>`).join(""):'<div class="empty">No HSH commands yet</div>'}</div>
+        </div>
+        <div class="card pad"><h3>HSH + HstScript</h3><div class="small muted">HSH는 Helack 작업 셸이고, HstScript는 Python 계열 문법을 JavaScript 샌드박스에서 실행하는 실제 프로그래밍 언어입니다.</div><hr>
+          <pre class="code">room list
+room create backend
+task create "Fix release note"
+hst print("Hello from HstScript sandbox")
+hst x = 10\nif x &gt; 5:\n    print("large")</pre>
+          <button class="btn" data-view="hstscript">Open HstScript</button>
+        </div>
+      </div>`;
+  }
+
+  window.__hstCli=window.__hstCli||[];
+
+  function runHstCliLine(source){
+    const code=String(source||'').trim();
+    if(!code) return;
+    window.__hstCli.push({kind:'cmd',text:code});
+    const result=executeHstScript(code);
+    window.__hstCli.push({kind:'out',text:result.output,error:!result.ok});
+    saveLocal(); render();
+    requestAnimationFrame(()=>{
+      const input=document.getElementById('hstCliInput');
+      const terminal=document.getElementById('hstTerminal');
+      if(input){input.value='';input.focus();}
+      if(terminal) terminal.scrollTop=terminal.scrollHeight;
+    });
+  }
+
+  function clearHstCli(){
+    window.__hstCli=[];
+    render();
+    requestAnimationFrame(()=>document.getElementById('hstCliInput')?.focus());
+  }
+
+  function runHstExampleCli(){
+    const source='print("Hello, Helack")';
+    runHstCliLine(source);
+  }
+
+  function hstScriptView(){
+    return `<div class="spread"><div><h2>HstScript</h2><div class="muted">Python 계열 문법 · Helack JavaScript Sandbox</div></div><span class="tag">CLI</span></div>
+      <div class="card" style="margin-top:12px;overflow:hidden;background:#090e19;border-color:#202a40">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:#0d1425">
+          <span class="tag">hstscript</span><span class="small muted">Enter로 실행</span>
+          <div style="margin-left:auto;display:flex;gap:8px"><button class="btn" data-action="hst-clear">Clear</button><button class="btn" data-action="hst-example">Example</button></div>
+        </div>
+        <div id="hstTerminal" style="height:560px;overflow:auto;padding:14px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;line-height:1.55">
+          <div class="muted">HstScript CLI v0.1</div>
+          <div class="muted">Python-like syntax · restricted JavaScript sandbox</div>
+          ${(window.__hstCli||[]).map(x=>x.kind==='cmd'?`<div style="margin-top:10px"><span style="color:#7fa2ff">$</span> ${esc(x.text)}</div>`:`<div style="white-space:pre-wrap;color:${x.error?'#ff9aa6':'#d7def0'}">${esc(x.text)}</div>`).join('')}
+          <div class="row" style="margin-top:10px;align-items:flex-start"><span style="color:#7fa2ff">$</span><textarea id="hstCliInput" aria-label="HstScript command" style="flex:1;background:transparent;border:0;padding:0;min-height:26px;height:26px;resize:none;color:#fff;box-shadow:none;font-family:inherit;line-height:1.55" placeholder='print("Hello")'></textarea></div>
+        </div>
+      </div>
+      <div class="card pad" style="margin-top:12px">
+        <h3>HstScript</h3>
+        <div class="notice">입력한 소스는 실행 직후 입력창에서 사라집니다. 히스토리에는 실행 결과가 남습니다. HstScript는 Python 자체가 아니라 Python과 유사한 문법을 Helack의 제한된 JavaScript 런타임으로 실행합니다.</div>
+        <pre class="code" style="margin-top:10px">print("Hello, Helack")
+x = 10
+print(x * 2)
+
+for i in range(1, 4):
+    print(i)
+
+if x &gt; 5:
+    print("ready")
+
+room("backend")
+task("Implement API")
+wiki("Deployment")
+link("https://example.com")
+message("backend", "Build started")</pre>
+      </div>`;
+  }
+
+
+  // ---------- Global events ----------
+  document.addEventListener("click", e=>{
+    const v=e.target.closest("[data-view]"); if(v){setView(v.dataset.view);return}
+    const a=e.target.closest("[data-action]");
+    if(a){
+      const x=a.dataset.action;
+      if(x==="export") exportHlk();
+      else if(x==="import") document.getElementById("fileInput").click();
+      else if(x==="share") makeShareLink();
+      else if(x==="webrtc") showRtc();
+      else if(x==="new-room") newRoom();
+      else if(x==="send-message") sendMessage();
+      else if(x==="new-wiki") newWiki();
+      else if(x==="new-doc") newDoc();
+      else if(x==="new-project") newProject();
+      else if(x==="new-task") newTask();
+      else if(x==="new-link") newLink();
+      else if(x==="rename-workspace") renameWorkspace();
+      else if(x==="run-hsh") {
+        const el=document.getElementById("hshInput");
+        if(el) runHsh(el.value);
+      }
+      else if(x==="run-hst") {
+        const input=document.getElementById("hstCliInput");
+        if(input) runHstCliLine(input.value);
+      }
+      else if(x==="hst-clear") clearHstCli();
+      else if(x==="hst-example") runHstExampleCli();
+      else if(x==="load-hst-example") runHstExampleCli();
+      return;
+    }
+    const r=e.target.closest("[data-room]"); if(r){activeRoomId=r.dataset.room;render();return}
+    const th=e.target.closest("[data-thread]"); if(th){addThread(th.dataset.thread);return}
+    const co=e.target.closest("[data-comment]"); if(co){addComment(co.dataset.comment);return}
+    const wc=e.target.closest("[data-open-wiki]"); if(wc){openWiki(wc.dataset.openWiki);return}
+    const dc=e.target.closest("[data-open-doc]"); if(dc){openDoc(dc.dataset.openDoc);return}
+    const mt=e.target.closest("[data-move-task]"); if(mt){moveTask(mt.dataset.moveTask,mt.dataset.status);return}
+    const ct=e.target.closest("[data-comment-task]"); if(ct){commentTask(ct.dataset.commentTask);return}
+    const sr=e.target.closest("[data-share-room]"); if(sr){makeRoomShareLink(sr.dataset.shareRoom);return}
+  });
+
+  document.getElementById("fileInput").addEventListener("change",e=>{
+    const f=e.target.files[0]; if(f) importHlk(f).catch(err=>alert("Import failed: "+err.message)); e.target.value="";
+  });
+  document.getElementById("quickCmd").addEventListener("keydown",e=>{
+    if(e.key==="Enter"){
+      const ok=handleCommand(e.target.value.trim());
+      if(!ok && e.target.value.trim()) alert("Unknown command. Try /room, /task, /wiki, /link");
+      e.target.value=""; render();
+    }
+  });
+  document.addEventListener("keydown",e=>{
+    if(state.view==="room" && e.key==="Enter" && document.activeElement?.id==="messageInput"){sendMessage();}
+    if(state.view==="hsh" && e.key==="Enter" && document.activeElement?.id==="hshInput"){runHsh(document.getElementById("hshInput").value);}
+    if(state.view==="hstscript" && e.key==="Enter" && !e.shiftKey && document.activeElement?.id==="hstCliInput"){
+      e.preventDefault();
+      runHstCliLine(document.getElementById("hstCliInput").value);
+    }
+    if(e.key==="Escape")closeModal();
+  });
+
+  async function boot(){
+    loadLocal();
+    await loadShareFromHash();
+    await loadRoomShareFromHash();
+    render();
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
