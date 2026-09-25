@@ -1,4 +1,4 @@
-name: Deploy JetOS Website
+name: Helack Website
 
 on:
   push:
